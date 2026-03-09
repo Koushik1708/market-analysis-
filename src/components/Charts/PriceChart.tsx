@@ -16,12 +16,13 @@ import { format } from 'date-fns';
 
 interface Props {
   data: AnalysisDataPoint[];
+  symbolName?: string;
 }
 
-const PriceChart: React.FC<Props> = ({ data }) => {
+const PriceChart: React.FC<Props> = ({ data, symbolName }) => {
   return (
     <div className="h-[400px] w-full bg-white p-4 rounded-xl shadow-sm border border-black/5">
-      <h3 className="text-lg font-semibold mb-4 text-zinc-900">Sun Pharma - Close Price (5 Years)</h3>
+      <h3 className="text-lg font-semibold mb-4 text-zinc-900">{symbolName || 'Stock'} - Close Price</h3>
       <ResponsiveContainer width="100%" height="90%">
         <AreaChart data={data}>
           <defs>

@@ -96,7 +96,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, docu
               </div>
               <div>
                 <h1 className="text-xl font-bold text-zinc-900">
-                  {symbolName || 'Sun Pharma Analysis'}
+                  {symbolName || 'Stock Analysis'}
                 </h1>
                 <p className="text-xs text-zinc-500 font-medium tracking-wider uppercase">
                   {customData ? 'Custom Dataset' : `${DEFAULT_SYMBOL} • NSE India`}
@@ -150,7 +150,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, docu
         </div>
 
         {/* Charts - One by One */}
-        <PriceChart data={data} />
+        <PriceChart data={data} symbolName={symbolName} />
         <MovingAverageChart data={data} />
         <VolatilityChart data={data} />
         <SeasonalChart data={seasonalAverages} />
