@@ -11,7 +11,7 @@ import {
   calculateMonthlyAveragePrice,
   calculateAverageVolume,
   calculateTrendStrength
-} from "../utils/technicalIndicators";
+} from "../utils/technicalIndicators.js";
 
 // Simple hash function for dataset to create a deterministic seed and cache key
 const hashDataset = (data: AnalysisDataPoint[]): number => {

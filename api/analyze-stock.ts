@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import yahooFinance from 'yahoo-finance2';
-import { processStockData } from '../src/services/stockService';
-import { callGeminiPrediction } from '../src/services/predictionService';
+import { processStockData } from '../src/services/stockService.js';
+import { callGeminiPrediction } from '../src/services/predictionService.js';
 
 // Basic mapper
 const dict: Record<string, string> = {
@@ -17,22 +17,22 @@ const dict: Record<string, string> = {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-     return res.status(405).json({ error: "Method not allowed. Use POST." });
+    return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
   const { company, years = 5 } = req.body;
   if (!company) {
-     return res.status(400).json({ error: "Company name is required." });
+    return res.status(400).json({ error: "Company name is required." });
   }
 
   let ticker = company.toUpperCase().trim();
   const normalized = ticker.replace(/[\s\W]+/g, '');
   if (dict[ticker]) {
-     ticker = dict[ticker];
+    ticker = dict[ticker];
   } else if (dict[normalized]) {
-     ticker = dict[normalized];
+    ticker = dict[normalized];
   } else if (!ticker.includes('.')) {
-     ticker = ticker + '.NS'; // simple fallback
+    ticker = ticker + '.NS'; // simple fallback
   }
 
   console.log(`User input company name: ${company}`);
@@ -49,21 +49,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     console.log(`Yahoo Finance API response status: ${response.status}`);
-    
+
     if (!response.ok) {
-       const errText = await response.text();
-       console.error(`Yahoo Finance Error: ${response.status} - ${errText}`);
-       return res.status(500).json({ error: "Failed to fetch stock data", details: errText, status: response.status });
+      const errText = await response.text();
+      console.error(`Yahoo Finance Error: ${response.status} - ${errText}`);
+      return res.status(500).json({ error: "Failed to fetch stock data", details: errText, status: response.status });
     }
 
     const rawData = await response.json();
-    
+
     let mappedData: any[] = [];
     if (rawData.chart && rawData.chart.result && rawData.chart.result.length > 0) {
       const result = rawData.chart.result[0];
       const timestamps = result.timestamp || [];
       const quote = result.indicators.quote[0] || {};
-      
+
       mappedData = timestamps.map((ts: number, i: number) => ({
         date: new Date(ts * 1000).toISOString(),
         open: quote.open?.[i] || 0,
@@ -82,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error("Data parse error.");
     }
 
-    const processedFormat = mappedData.map(d => ({...d, date: new Date(d.date)}));
+    const processedFormat = mappedData.map(d => ({ ...d, date: new Date(d.date) }));
     processedFormat.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     // 1. Calculate technicals locally in Node
@@ -93,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const newsResult = await yahooFinance.search(ticker, { newsCount: 5 }) as any;
       if (newsResult.news && Array.isArray(newsResult.news)) {
-         newsHeadlines = newsResult.news.map((n: any) => n.title);
+        newsHeadlines = newsResult.news.map((n: any) => n.title);
       }
     } catch (e) {
       console.warn("Failed to fetch news serverside", e);
