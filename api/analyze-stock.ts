@@ -101,16 +101,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 3. Compute Ensembles & Factor Scoring, call Gemini for abstract reasoning
     let predictionResult = null;
+    let predictionError = null;
     try {
       predictionResult = await callGeminiPrediction(analysisData, ticker, newsHeadlines);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Gemini inference failed", e);
+      predictionError = e.message || String(e);
     }
 
     // 4. Return unified JSON block strictly to Vercel specs
     return res.status(200).json({
       historicalData: analysisData,
-      predictionResult: predictionResult
+      predictionResult: predictionResult,
+      predictionError: predictionError
     });
 
   } catch (error) {
