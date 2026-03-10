@@ -1,12 +1,12 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AnalysisDataPoint, AIAnalysisResult, PredictionPoint, MarketRegime } from "../types";
 import { parseISO, addDays, format, isWeekend } from "date-fns";
-import { 
-  calculateSMA, 
-  calculateRSI, 
-  calculateMACD, 
-  calculateBollingerBands, 
-  calculateVolatility, 
+import {
+  calculateSMA,
+  calculateRSI,
+  calculateMACD,
+  calculateBollingerBands,
+  calculateVolatility,
   calculateMomentum,
   calculateMonthlyAveragePrice,
   calculateAverageVolume,
@@ -29,7 +29,7 @@ const hashDataset = (data: AnalysisDataPoint[]): number => {
 
 // Seeded PRNG (Mulberry32)
 const createSeededRandom = (seed: number) => {
-  return function() {
+  return function () {
     let t = seed += 0x6D2B79F5;
     t = Math.imul(t ^ t >>> 15, t | 1);
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
@@ -43,12 +43,12 @@ const detectRegime = (ma50: number, ma200: number, rsi: number, momentum: number
   if (volatility < 0.15 && Math.abs(momentum - 100) < 5) return 'Sideways Market';
   if (ma50 > ma200 && rsi < 45 && momentum < 100) return 'Bearish Correction';
   if (ma50 < ma200 && rsi > 55 && momentum > 100) return 'Recovery Phase';
-  
+
   return 'Sideways Market'; // default fallback
 };
 
 export const generateEnsemblePredictions = (
-  data: AnalysisDataPoint[], 
+  data: AnalysisDataPoint[],
   days: number = 14,
   prng: () => number,
   regime: MarketRegime,
@@ -59,7 +59,7 @@ export const generateEnsemblePredictions = (
 
   const closes = data.map(d => d.close);
   const currentPrice = closes[closes.length - 1];
-  
+
   // 1. Holt-Winters (simplified)
   let level = closes[0];
   let trend = closes[1] - closes[0];
@@ -70,11 +70,11 @@ export const generateEnsemblePredictions = (
   }
 
   // 2. Momentum Model
-  const recentReturns = closes.slice(-14).map((c, i, arr) => i > 0 ? (c - arr[i-1])/arr[i-1] : 0).slice(1);
+  const recentReturns = closes.slice(-14).map((c, i, arr) => i > 0 ? (c - arr[i - 1]) / arr[i - 1] : 0).slice(1);
   const avgDailyReturn = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
 
   // 3. Mean Reversion Model
-  const ma50 = closes.slice(-50).reduce((a,b)=>a+b,0) / 50;
+  const ma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / 50;
 
   // Weights setup based on regime
   let wHW = 0.4, wMom = 0.3, wMR = 0.3;
@@ -83,7 +83,7 @@ export const generateEnsemblePredictions = (
   } else if (regime === 'Sideways Market') {
     wMom = 0.1; wMR = 0.6; wHW = 0.3; // Mean reverting
   }
-  
+
   // Volatility dampening
   if (latestVol > 0.3) {
     wMom *= 0.5; // Reduce momentum impact in high vol
@@ -91,16 +91,16 @@ export const generateEnsemblePredictions = (
   }
 
   const predictions: PredictionPoint[] = [];
-  const lastDate = typeof data[data.length - 1].date === 'string' 
-    ? parseISO(data[data.length - 1].date as string) 
+  const lastDate = typeof data[data.length - 1].date === 'string'
+    ? parseISO(data[data.length - 1].date as string)
     : data[data.length - 1].date as Date;
-    
+
   let currentDate = lastDate;
   let addedDays = 0;
-  
+
   let hwPrice = level;
   let momPrice = currentPrice;
-  
+
   // Base volatility factor
   const dailyVol = latestVol / Math.sqrt(252);
 
@@ -110,18 +110,18 @@ export const generateEnsemblePredictions = (
 
     // Holt-Winters step
     hwPrice += trend;
-    
+
     // Momentum step
     momPrice = momPrice * (1 + avgDailyReturn);
-    
+
     // Mean reversion step (gradual pull to MA50)
-    const pullFactor = 0.1; 
+    const pullFactor = 0.1;
     const mrPrice = currentPrice + (ma50 - currentPrice) * pullFactor * i;
 
     // Factor Score Adjustment (-0.5% to +0.5% drift based on factor score)
     const factorAdjustment = ((factorScore - 50) / 50) * 0.005 * i;
     const basePred = ((hwPrice * wHW) + (momPrice * wMom) + (mrPrice * wMR)) * (1 + factorAdjustment);
-    
+
     // Add deterministic noise
     const noise = basePred * dailyVol * (prng() - 0.5);
     const finalPred = Math.max(0.01, basePred + noise);
@@ -137,7 +137,7 @@ export const generateEnsemblePredictions = (
       upperBound: upperBound,
       lowerBound: lowerBound,
     });
-    
+
     addedDays++;
   }
 
@@ -146,18 +146,18 @@ export const generateEnsemblePredictions = (
 
 // Local factor score calculation
 const computeFactorScore = (
-  momentums: (number|null)[], 
+  momentums: (number | null)[],
   closes: number[],
   volumes: number[],
-  ma50s: (number|null)[], 
-  vols: (number|null)[]
+  ma50s: (number | null)[],
+  vols: (number | null)[]
 ) => {
   const latestClose = closes[closes.length - 1];
-  
+
   // 1. Momentum factor (-1 to 1) 
   const momRaw = momentums[momentums.length - 1] || 100;
-  const momFactor = Math.max(-1, Math.min(1, (momRaw - 100) / 10)); 
-  
+  const momFactor = Math.max(-1, Math.min(1, (momRaw - 100) / 10));
+
   // 2. Trend factor
   const ma50Now = ma50s[ma50s.length - 1] || latestClose;
   const ma50Prev = ma50s[Math.max(0, ma50s.length - 10)] || latestClose;
@@ -176,22 +176,22 @@ const computeFactorScore = (
   // 5. Mean Reversion factor
   const mrFactor = Math.max(-1, Math.min(1, (ma50Now - latestClose) / latestClose * 10));
 
-  const score = 
+  const score =
     0.30 * momFactor +
     0.25 * trendFactor +
     0.20 * volumeFactor +
     0.15 * volFactor +
     0.10 * mrFactor;
-    
+
   return Math.round(((score + 1) / 2) * 100);
 };
 
 export const callGeminiPrediction = async (
-  data: AnalysisDataPoint[], 
+  data: AnalysisDataPoint[],
   symbolName: string,
   newsHeadlines: string[] = []
 ): Promise<AIAnalysisResult> => {
-  const apiKey = typeof process !== 'undefined' && process?.env?.VITE_GEMINI_API_KEY ? process.env.VITE_GEMINI_API_KEY : (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  const apiKey = process.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("Gemini API key missing. Please set VITE_GEMINI_API_KEY in the environment.");
   }
@@ -224,7 +224,7 @@ export const callGeminiPrediction = async (
 
   const datasetHash = hashDataset(data);
   const prng = createSeededRandom(datasetHash);
-  
+
   const regime = detectRegime(latestMA50, latestMA200, latestRSI, latestMomentum, latestVol);
   const predictions = generateEnsemblePredictions(data, 14, prng, regime, latestVol, factorScore);
 
@@ -244,7 +244,7 @@ export const callGeminiPrediction = async (
   // Call Gemini only for reasoning and sentiment extraction
   const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-flash-preview";
-  
+
   const systemInstruction = `You are an AI financial reasoning agent.
 Produce a brief explanation (UNDER 150 WORDS) based on the inputs.
 You MUST respond strictly with a valid JSON document matching the requested schema.`;
@@ -252,7 +252,7 @@ You MUST respond strictly with a valid JSON document matching the requested sche
   const prompt = `Stock: ${symbolName || 'Unknown Stock'}
 Market Regime: ${regime}
 Factor Score: ${factorScore}/100
-Predictions: ${predictions[0].modelPrediction.toFixed(2)} to ${predictions[predictions.length-1].modelPrediction.toFixed(2)}
+Predictions: ${predictions[0].modelPrediction.toFixed(2)} to ${predictions[predictions.length - 1].modelPrediction.toFixed(2)}
 
 News Headlines (Extract Sentiment!):
 ${newsSentimentData.headlines.join('\n')}
@@ -304,7 +304,7 @@ Generate:
   if (!response.text) {
     throw new Error("No response received from GenAI.");
   }
-  
+
   aiResultParams = JSON.parse(response.text);
 
   // Calculate min and max from the predictions
@@ -314,7 +314,7 @@ Generate:
   // Backtesting System: Walk-forward validation over the last 20% of the dataset
   const testStartIndex = Math.floor(data.length * 0.8);
   const testData = data.slice(testStartIndex);
-  
+
   let maeSum = 0;
   let rmseSum = 0;
   let correctDirection = 0;
@@ -326,18 +326,18 @@ Generate:
   for (let i = 0; i < testData.length - 1; i++) {
     const walkData = data.slice(0, testStartIndex + i + 1);
     const localVol = vols[testStartIndex + i] || latestVol;
-    
+
     // Generate exactly 1 day ahead prediction
     const pred1Day = generateEnsemblePredictions(walkData, 1, prng, regime, localVol, factorScore);
     if (pred1Day.length > 0) {
       const predicted = pred1Day[0].modelPrediction || 0;
       const actualTarget = testData[i + 1].close;
       const currentClose = testData[i].close;
-      
+
       const errorVal = Math.abs(predicted - actualTarget);
       maeSum += errorVal;
       rmseSum += errorVal * errorVal;
-      
+
       const predictedUp = predicted > currentClose;
       const actualUp = actualTarget > currentClose;
       if (predictedUp === actualUp) {
@@ -357,7 +357,7 @@ Generate:
   const mae = totalTested > 0 ? maeSum / totalTested : 0;
   const rmse = totalTested > 0 ? Math.sqrt(rmseSum / totalTested) : 0;
   const directionalAccuracy = totalTested > 0 ? (correctDirection / totalTested) * 100 : 0;
-  
+
   const testStartDateObj = testData[0]?.date;
   const testEndDateObj = testData[testData.length - 1]?.date;
 
