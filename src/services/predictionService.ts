@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AnalysisDataPoint, AIAnalysisResult, PredictionPoint, MarketRegime } from "../types";
+import { AnalysisDataPoint, AIAnalysisResult, PredictionPoint, MarketRegime, BacktestPoint } from "../types";
 import { parseISO, addDays, format, isWeekend } from "date-fns";
 import {
   calculateSMA,
@@ -321,7 +321,7 @@ Generate:
   let totalTested = 0;
 
   // Simulate 1-day ahead forecasts over the test period
-  const testPredictions: import('../types').BacktestPoint[] = [];
+  const testPredictions: BacktestPoint[] = [];
 
   for (let i = 0; i < testData.length - 1; i++) {
     const walkData = data.slice(0, testStartIndex + i + 1);
