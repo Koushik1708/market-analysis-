@@ -12,6 +12,7 @@ import {
 
 interface Props {
   data: { month: number; average: number }[];
+  yearRange?: string;
 }
 
 const monthNames = [
@@ -19,10 +20,13 @@ const monthNames = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
-const SeasonalChart: React.FC<Props> = ({ data }) => {
+const SeasonalChart: React.FC<Props> = ({ data, yearRange }) => {
   return (
     <div className="h-[300px] w-full bg-white p-4 rounded-xl shadow-sm border border-black/5">
-      <h3 className="text-lg font-semibold mb-4 text-zinc-900">Average Monthly Closing Price</h3>
+      <h3 className="text-lg font-semibold mb-4 text-zinc-900">
+        Average Monthly Closing Price
+        {yearRange && <span className="text-sm font-medium text-zinc-500 ml-2">({yearRange})</span>}
+      </h3>
       <ResponsiveContainer width="100%" height="80%">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />

@@ -1,213 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, FileText, BarChart2, Shield, ArrowRight, Loader2, AlertCircle, FileCode } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import Papa from 'papaparse';
-import * as pdfjsLib from 'pdfjs-dist';
+import { BarChart2, Shield, ArrowRight, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { StockDataPoint, AppDocument } from '../types';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
 interface LandingPageProps {
-  onDataLoaded: (data: StockDataPoint[], fileName: string, documents: AppDocument[]) => void;
+  onDataLoaded: (data: StockDataPoint[], fileName: string, documents: AppDocument[], years?: number) => void;
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
-  const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<{
-    stockData?: { data: StockDataPoint[], name: string };
-    documents: AppDocument[];
-  }>({ documents: [] });
+  const [ticker, setTicker] = useState('Tata Steel');
+  const [years, setYears] = useState('5');
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const extractTextFromPdf = async (file: File): Promise<string> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
-    
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
+  const handleAnalyze = async () => {
+    if (!ticker.trim()) {
+      setError("Please enter a valid stock ticker symbol.");
+      return;
     }
     
-    return fullText;
-  };
-
-  const handleFile = async (file: File) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      if (file.name.endsWith('.pdf')) {
-        const text = await extractTextFromPdf(file);
-        const newDoc: AppDocument = {
-          id: Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          type: 'pdf',
-          content: text,
-          size: file.size
-        };
-        setUploadedFiles(prev => ({
-          ...prev,
-          documents: [...prev.documents, newDoc]
-        }));
-      } else if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        const reader = new FileReader();
-        
-        const dataPromise = new Promise<StockDataPoint[]>((resolve, reject) => {
-          reader.onload = (e) => {
-            try {
-              const data = e.target?.result;
-              let parsedData: any[] = [];
-
-              if (file.name.endsWith('.csv')) {
-                const results = Papa.parse(data as string, { header: false, skipEmptyLines: true });
-                const rows = results.data as string[][];
-                
-                if (rows.length < 2) {
-                  reject(new Error("CSV file is empty or invalid."));
-                  return;
-                }
-
-                // Detect multi-row header (e.g., Ticker row, Date row)
-                let dataStartIndex = 1;
-                let headerRow = rows[0];
-                let ticker = '';
-
-                // Check if row 1 is a Ticker row
-                if (rows[1] && rows[1][0]?.toLowerCase() === 'ticker') {
-                  ticker = rows[1][1] || '';
-                  dataStartIndex = 2;
-                }
-                
-                // Check if next row is a Date label row
-                if (rows[dataStartIndex] && rows[dataStartIndex][0]?.toLowerCase() === 'date') {
-                  dataStartIndex++;
-                }
-
-                // Map rows to objects
-                parsedData = rows.slice(dataStartIndex).map(row => {
-                  const obj: any = {};
-                  headerRow.forEach((header, index) => {
-                    obj[header] = row[index];
-                  });
-                  if (ticker) obj.Ticker = ticker;
-                  return obj;
-                });
-              } else {
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                parsedData = XLSX.utils.sheet_to_json(worksheet);
-              }
-
-              const mappedData: StockDataPoint[] = parsedData.map((row: any) => {
-                // Try to find date in various column names
-                const dateVal = row.Date || row.date || row.DATE || row.Price || row[''];
-                const close = parseFloat(row.Close || row.close || row.CLOSE || row.Price || row.price);
-                const open = parseFloat(row.Open || row.open || row.OPEN);
-                const high = parseFloat(row.High || row.high || row.HIGH);
-                const low = parseFloat(row.Low || row.low || row.LOW);
-                const volume = parseFloat(row.Volume || row.volume || row.VOLUME || 0);
-
-                // If row.Price is used for date (as in the sample), we need to be careful
-                // The sample has: Price, Close, High, Low, Open, Volume
-                // And data row: 2021-01-12, 887.38, ...
-                // So row.Price is actually the date.
-                
-                let actualDate = dateVal;
-                let actualClose = close;
-
-                // Heuristic: if close is NaN but Price is a number, Price might be Close
-                // But in this specific format, Price is the first column which is the Date.
-                if (isNaN(new Date(actualDate).getTime())) {
-                  // Try to find any column that looks like a date
-                  const possibleDate = Object.values(row).find(v => !isNaN(new Date(v as string).getTime()));
-                  if (possibleDate) actualDate = possibleDate;
-                }
-
-                if (!actualDate || isNaN(close)) return null;
-
-                return {
-                  date: new Date(actualDate),
-                  open: isNaN(open) ? close : open,
-                  high: isNaN(high) ? close : high,
-                  low: isNaN(low) ? close : low,
-                  close,
-                  volume,
-                  symbol: row.Ticker
-                };
-              }).filter(Boolean) as StockDataPoint[];
-
-              if (mappedData.length === 0) {
-                reject(new Error("No valid stock data found. Ensure your file has 'Date' and 'Close' columns."));
-              }
-
-              mappedData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-              resolve(mappedData);
-            } catch (err: any) {
-              reject(err);
-            }
-          };
-        });
-
-        if (file.name.endsWith('.csv')) {
-          reader.readAsText(file);
-        } else {
-          reader.readAsBinaryString(file);
-        }
-
-        const mappedData = await dataPromise;
-        setUploadedFiles(prev => ({
-          ...prev,
-          stockData: { data: mappedData, name: file.name }
-        }));
-      } else {
-        // Generic text file
-        const text = await file.text();
-        const newDoc: AppDocument = {
-          id: Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          type: 'text',
-          content: text,
-          size: file.size
-        };
-        setUploadedFiles(prev => ({
-          ...prev,
-          documents: [...prev.documents, newDoc]
-        }));
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to process file.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files) as File[];
-    files.forEach(file => handleFile(file));
-  };
-
-  const handleAnalyze = () => {
-    if (uploadedFiles.stockData) {
-      onDataLoaded(uploadedFiles.stockData.data, uploadedFiles.stockData.name, uploadedFiles.documents);
-    } else {
-      setError("Please upload at least one stock data file (CSV/Excel) to begin analysis.");
-    }
+    const yrNum = parseInt(years, 10) || 5;
+    const t = ticker.trim();
+    
+    // Instead of fetching data here, we pass the parameters to the parent component
+    // which will transition to the Dashboard for fetching.
+    onDataLoaded([], t, [], yrNum);
   };
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#050505] text-white font-sans">
-      {/* Background Image with Overlay - adjusted to show person till knees */}
+      {/* Background Image with Overlay */}
       <div 
         className="absolute inset-0 z-0 opacity-50"
         style={{
@@ -234,7 +56,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-center max-w-4xl"
+          className="text-center max-w-4xl w-full"
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest mb-8">
             <Shield className="w-3 h-3" />
@@ -246,127 +68,79 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
           </h1>
           
           <p className="text-xl text-zinc-400 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Upload your historical stock data and unlock institutional-grade insights. 
-            Now supporting research PDFs and related documents.
+            Enter any global stock ticker symbol to generate instant, institutional-grade insights and AI-driven 14-day forecasts.
           </p>
 
-          {/* Upload Bar */}
-          <div className="relative max-w-2xl mx-auto">
-            <motion.div
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={onDrop}
-              className={`
-                relative group cursor-pointer
-                p-8 rounded-2xl border-2 border-dashed transition-all duration-300
-                ${isDragging ? 'border-blue-500 bg-blue-500/10 scale-[1.02]' : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700'}
-              `}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                multiple
-                accept=".csv,.xlsx,.xls,.pdf,.txt"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []) as File[];
-                  files.forEach(file => handleFile(file));
-                }}
-              />
+          {/* Input Panel */}
+          <div className="relative max-w-xl mx-auto bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 backdrop-blur-xl">
+            <div className="flex flex-col gap-6 text-left">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Company Name / Ticker Input</label>
+                <input 
+                  type="text" 
+                  value={ticker}
+                  onChange={(e) => setTicker(e.target.value)}
+                  placeholder="Enter company name or ticker (example: Tata Steel or TATASTEEL.NS)"
+                  className="w-full bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                />
+              </div>
               
-              <div className="flex flex-col items-center gap-4">
-                {isLoading ? (
-                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-blue-600 transition-colors duration-500">
-                    <Upload className="w-8 h-8 text-zinc-400 group-hover:text-white" />
-                  </div>
-                )}
-                
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-white">
-                    {isLoading ? 'Processing Data...' : 'Drop your Files or PDFs here'}
-                  </p>
-                  <p className="text-sm text-zinc-500 mt-1">
-                    Supports .xlsx, .csv, .pdf, and .txt files
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Years of Historical Data Input</label>
+                <input 
+                  type="number" 
+                  value={years}
+                  min="1"
+                  max="20"
+                  onChange={(e) => setYears(e.target.value)}
+                  placeholder="Enter number of years (example: 5)"
+                  className="w-full bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                />
               </div>
 
-              {/* Glow Effect on Hover */}
-              <div className="absolute inset-0 rounded-2xl bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-            </motion.div>
-
-            {/* File List */}
-            <AnimatePresence>
-              {(uploadedFiles.stockData || uploadedFiles.documents.length > 0) && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-6 space-y-2 text-left"
-                >
-                  {uploadedFiles.stockData && (
-                    <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <BarChart2 className="w-4 h-4 text-blue-400" />
-                        <span className="text-sm font-medium text-blue-100">{uploadedFiles.stockData.name}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-blue-400 uppercase">Stock Data</span>
-                    </div>
-                  )}
-                  {uploadedFiles.documents.map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        {doc.type === 'pdf' ? <FileText className="w-4 h-4 text-red-400" /> : <FileCode className="w-4 h-4 text-zinc-400" />}
-                        <span className="text-sm font-medium text-zinc-300">{doc.name}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase">{doc.type}</span>
-                    </div>
-                  ))}
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleAnalyze}
-                    className="w-full mt-4 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleAnalyze}
+                disabled={isLoading}
+                className="w-full mt-2 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+              >
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><BarChart2 className="w-5 h-5"/> Analyze Stock <ArrowRight className="w-4 h-4 ml-1" /></>}
+              </motion.button>
+              
+              <AnimatePresence>
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm mt-2"
                   >
-                    START ANALYSIS <ArrowRight className="w-4 h-4" />
-                  </motion.button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm"
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            {/* Glow Effect on Hover */}
+            <div className="absolute inset-0 rounded-3xl bg-blue-500/5 opacity-0 hover:opacity-100 transition-opacity pointer-events-none" />
           </div>
 
           <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
             <FeatureItem 
               icon={<BarChart2 className="w-5 h-5 text-emerald-400" />}
-              title="Volatility Analysis"
-              desc="Annualized rolling volatility metrics."
+              title="Global Multi-Asset Data"
+              desc="Automatic fetching of OHLCV daily data directly."
             />
             <FeatureItem 
               icon={<FileText className="w-5 h-5 text-blue-400" />}
-              title="Document Intelligence"
-              desc="Analyze research PDFs and reports."
+              title="Financial News Sentiment"
+              desc="Aggregated real-time headlines with AI classification."
             />
             <FeatureItem 
               icon={<ArrowRight className="w-5 h-5 text-purple-400" />}
-              title="Seasonal Heatmaps"
-              desc="Historical monthly performance mapping."
+              title="Ensemble AI Forecasts"
+              desc="Combined factor models with Gemini insights overlay."
             />
           </div>
         </motion.div>

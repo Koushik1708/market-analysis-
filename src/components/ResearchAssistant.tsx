@@ -27,7 +27,11 @@ const ResearchAssistant: React.FC<ResearchAssistantProps> = ({ documents }) => {
     setIsAnalyzing(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Gemini API key missing. Please set VITE_GEMINI_API_KEY in the .env file.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const model = "gemini-3-flash-preview";
       
       const systemInstruction = `You are a professional financial research assistant. 

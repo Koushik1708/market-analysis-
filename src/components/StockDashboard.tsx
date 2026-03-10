@@ -7,18 +7,20 @@ import MovingAverageChart from './Charts/MovingAverageChart';
 import MonthlyHeatmap from './Charts/MonthlyHeatmap';
 import SeasonalChart from './Charts/SeasonalChart';
 import ResearchAssistant from './ResearchAssistant';
-import { TrendingUp, TrendingDown, Activity, BarChart3, Calendar, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, BarChart3, Calendar, RefreshCw, AlertCircle, ArrowLeft, Sparkles, BrainCircuit } from 'lucide-react';
 
 const DEFAULT_SYMBOL = 'SUNPHARMA.NS';
 
-const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, documents = [], onReset }) => {
+const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, years, documents = [], onReset, onPredict }) => {
   const [data, setData] = useState<AnalysisDataPoint[]>([]);
   const [quote, setQuote] = useState<QuoteData | null>(null);
+  const [predictionData, setPredictionData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async () => {
-    if (customData) {
+    // If we've already fetched the data and stored it in App state, use it
+    if (customData && customData.length > 0) {
       setData(processStockData(customData));
       setLoading(false);
       return;
@@ -27,16 +29,62 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, docu
     setLoading(true);
     setError(null);
     try {
-      const [stockData, quoteData] = await Promise.all([
-        fetchStockData(DEFAULT_SYMBOL),
-        fetchQuoteData(DEFAULT_SYMBOL)
-      ]);
-      const processed = processStockData(stockData);
-      setData(processed);
+      const activeSymbol = symbolName || DEFAULT_SYMBOL;
+      const activeYears = years || 5;
+      
+      const cacheKey = `stock_data_${activeSymbol}_${activeYears}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      
+      let payload = null;
+      if (cached) {
+        payload = JSON.parse(cached);
+      } else {
+        const res = await fetch("/api/analyze-stock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company: activeSymbol,
+            years: activeYears
+          })
+        });
+        
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.error || "Failed to fetch stock data");
+        }
+        payload = await res.json();
+        
+        if (!payload || !payload.historicalData) {
+          throw new Error("No data found for this ticker. Ensure symbol is valid.");
+        }
+        sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+      }
+      
+      let historicalArray = payload.historicalData;
+      let predResult = payload.predictionResult;
+      
+      if (!Array.isArray(historicalArray)) {
+        throw new Error("Invalid data format received from API.");
+      }
+
+      // Convert iso strings back to Date objects strictly for the processor if they got stringified
+      const processedFormat = historicalArray.map(d => ({
+         ...d, 
+         date: typeof d.date === 'string' ? new Date(d.date) : d.date
+      }));
+      processedFormat.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      // Fetch quote separately
+      const quoteData = await fetchQuoteData(activeSymbol).catch(() => null);
+
+      setData(processedFormat);
+      setPredictionData(predResult);
       setQuote(quoteData);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to load stock data. Please check your connection or try again later.");
+      setError(err.message === "Failed to fetch stock data" 
+        ? "Unable to fetch stock data. Please check the ticker symbol or try again." 
+        : (err.message || "Unable to fetch stock data. Please check the ticker symbol or try again."));
     } finally {
       setLoading(false);
     }
@@ -74,6 +122,10 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, docu
   const monthlyReturns = calculateMonthlyReturns(data);
   const seasonalAverages = calculateSeasonalAverages(data);
   const latest = data[data.length - 1];
+
+  // Compute year range for seasonal chart
+  const chartYears = [...new Set(data.map(d => d.year))].sort((a: number, b: number) => a - b);
+  const yearRange = chartYears.length === 0 ? undefined : chartYears.length === 1 ? `${chartYears[0]}` : `${chartYears[0]}–${chartYears[chartYears.length - 1]}`;
 
   return (
     <div className="min-h-screen bg-zinc-50 pb-12">
@@ -153,7 +205,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, docu
         <PriceChart data={data} symbolName={symbolName} />
         <MovingAverageChart data={data} />
         <VolatilityChart data={data} />
-        <SeasonalChart data={seasonalAverages} />
+        <SeasonalChart data={seasonalAverages} yearRange={yearRange} />
         <MonthlyHeatmap data={monthlyReturns} />
 
         {/* Research Assistant */}
@@ -192,6 +244,29 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, docu
             </div>
           </div>
         </section>
+
+        {/* AI Prediction CTA */}
+        {onPredict && (
+          <section className="bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-8 rounded-3xl shadow-xl border border-purple-700/50 text-white relative overflow-hidden group">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30 mix-blend-overlay"></div>
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2 mb-2">
+                  <Sparkles className="text-purple-300" /> AI Price Prediction
+                </h2>
+                <p className="text-purple-200 max-w-xl">
+                  Take your analysis to the next level. Let our Gemini AI analyze historical momentum and current macroeconomic factors (geopolitics, inflation, etc.) to forecast the next 14 days of market movement.
+                </p>
+              </div>
+              <button 
+                onClick={() => onPredict && onPredict(data, predictionData)}
+                className="shrink-0 px-8 py-4 bg-white text-purple-900 rounded-xl font-bold hover:bg-purple-50 transition-all shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.5)] hover:scale-105 flex items-center gap-2"
+              >
+                <BrainCircuit className="w-5 h-5" /> Generate Forecast
+              </button>
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

@@ -42,6 +42,60 @@ export interface AppDocument {
 export interface DashboardProps {
   customData?: StockDataPoint[];
   symbolName?: string;
+  years?: number;
   documents?: AppDocument[];
   onReset?: () => void;
+  onPredict?: (data?: StockDataPoint[], predictionData?: any) => void;
+}
+
+export interface PredictionPoint {
+  date: string;
+  actualPrice?: number;
+  modelPrediction?: number;
+  aiAdjustedPrediction?: number;
+  upperBound?: number;
+  lowerBound?: number;
+}
+
+export type MarketRegime = 
+  | 'Bull Market' 
+  | 'Bear Market' 
+  | 'Sideways Market' 
+  | 'Bearish Correction' 
+  | 'Recovery Phase';
+
+export interface BacktestPoint {
+  date: string;
+  predictedPrice: number;
+  actualPrice: number;
+  error: number;
+}
+
+export interface BacktestMetrics {
+  mae: number;
+  rmse: number;
+  directionalAccuracy: number;
+  totalPredictions: number;
+  testStartDate: string;
+  testEndDate: string;
+  predictions: BacktestPoint[];
+}
+
+export interface AIAnalysisResult {
+  predictions: PredictionPoint[];
+  sentiment: 'Bullish' | 'Bearish' | 'Neutral';
+  reasoning: string;
+  keyFactors: string[];
+  newsSentiment?: {
+    score: number;
+    label: 'Positive' | 'Neutral' | 'Negative';
+    headlines: string[];
+  };
+  projectedRange: {
+    min: number;
+    max: number;
+  };
+  confidenceScore: number;
+  marketRegime: MarketRegime;
+  backtestMetrics?: BacktestMetrics;
 }
