@@ -93,7 +93,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#050505] text-white font-sans">
+    <div className="relative min-h-screen w-full overflow-x-clip bg-[#050505] text-white font-sans">
       {/* Background Image with Overlay */}
       <div 
         className="absolute inset-0 z-0 opacity-50"
@@ -137,7 +137,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
           </p>
 
           {/* Input Panel */}
-          <div className="relative max-w-4xl mx-auto bg-zinc-900/50 p-6 md:p-8 rounded-3xl border border-zinc-800 backdrop-blur-xl">
+          <div className="relative z-50 max-w-4xl mx-auto bg-zinc-900/50 p-6 md:p-8 rounded-3xl border border-zinc-800 backdrop-blur-xl">
             <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 text-left">
               <div className="flex-1" ref={dropdownRef}>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Company Name / Ticker Input</label>
@@ -229,7 +229,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
             <div className="absolute inset-0 rounded-3xl bg-blue-500/5 opacity-0 hover:opacity-100 transition-opacity pointer-events-none" />
           </div>
 
-          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+          <div className="relative z-0 mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
             <FeatureItem 
               icon={<BarChart2 className="w-5 h-5 text-emerald-400" />}
               title="Global Multi-Asset Data"
