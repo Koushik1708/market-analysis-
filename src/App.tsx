@@ -30,8 +30,8 @@ export default function App() {
   };
 
   const handlePredict = (fetchedData?: StockDataPoint[], predictionResult?: any) => {
-    setAppState(prev => ({ 
-      ...prev, 
+    setAppState(prev => ({
+      ...prev,
       view: 'prediction',
       // If the dashboard fetched new data, keep it!
       customData: fetchedData || prev.customData,
@@ -49,15 +49,16 @@ export default function App() {
         <LandingPage onDataLoaded={handleDataLoaded} />
       ) : appState.view === 'prediction' ? (
         <ErrorBoundary>
-          <AIPredictionPage 
-            data={appState.customData as any} 
-            symbolName={appState.fileName} 
+          <AIPredictionPage
+            data={appState.customData as any}
+            predictionResult={appState.predictionResult}
+            symbolName={appState.fileName}
             onBack={handleBackToDashboard}
           />
         </ErrorBoundary>
       ) : (
-        <StockDashboard 
-          customData={appState.customData} 
+        <StockDashboard
+          customData={appState.customData}
           symbolName={appState.fileName}
           years={appState.years}
           documents={appState.documents}

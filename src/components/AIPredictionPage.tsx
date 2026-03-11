@@ -59,12 +59,18 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
   const todayDate = lastDataPoint ? (typeof lastDataPoint.date === 'string' ? lastDataPoint.date : format(lastDataPoint.date as Date, 'yyyy-MM-dd')) : '';
 
   useEffect(() => {
+    console.log("Prediction API response:", predictionResult);
+
     if (!data || data.length === 0) {
       onBack();
       return;
     }
 
-    if (!predictionResult) {
+    // Safely extract the prediction data, handling cases where it might be wrapped
+    const safePrediction = predictionResult?.predictionResult ?? predictionResult?.prediction ?? predictionResult;
+
+    if (!safePrediction || !safePrediction.predictions || safePrediction.predictions.length === 0) {
+      console.error("Missing or malformed prediction block:", predictionResult);
       setError("Prediction data is missing. Please go back to the dashboard and try again.");
       return;
     }
@@ -81,12 +87,12 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
         stepNum++;
         if (stepNum > 3) {
           clearInterval(interval);
-          setResult(predictionResult);
+          setResult(safePrediction);
 
           // Combine historical actuals and future predictions for chart
           const historical = data.slice(-40).map(d => {
             const dateStr = typeof d.date === 'string' ? d.date : format(d.date as Date, 'yyyy-MM-dd');
-            const btPred = predictionResult?.backtestMetrics?.predictions?.find(p => p.date === dateStr);
+            const btPred = safePrediction?.backtestMetrics?.predictions?.find((p: any) => p.date === dateStr);
 
             return {
               date: dateStr,
@@ -100,7 +106,7 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
             };
           });
 
-          const future = (predictionResult?.predictions ?? []).map((p: any) => ({
+          const future = (safePrediction?.predictions ?? []).map((p: any) => ({
             ...p,
             probabilityBounds: p.lowerBound !== undefined && p.upperBound !== undefined
               ? [p.lowerBound, p.upperBound]
