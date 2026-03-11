@@ -13,7 +13,6 @@
 
 - [Overview](#-overview)
 - [Key Features](#-key-features)
-- [Screenshots](#-screenshots)
 - [Architecture](#-architecture)
 - [Prediction Pipeline](#-prediction-pipeline)
 - [Supported Asset Types](#-supported-asset-types)
