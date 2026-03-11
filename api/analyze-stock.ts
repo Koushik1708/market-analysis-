@@ -129,9 +129,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`Fetched ${stockData.length} valid historical data points for stock.`);
 
-    stockData.sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
-    if (marketData) marketData.sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
-    if (sectorData) sectorData.sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
+    stockData.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (marketData) marketData.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (sectorData) sectorData.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // 1. Calculate technicals locally in Node
     console.log(`Starting technical indicator computation...`);
