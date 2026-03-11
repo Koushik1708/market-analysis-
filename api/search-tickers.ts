@@ -36,17 +36,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     // We only need the quotes array
     const quotes = data.quotes || [];
-    
-    // Map to a cleaner format and filter out quotes that don't have symbols
-    const cleanResults = quotes
-      .filter((item: any) => item.symbol)
+
+    // Filter to Indian exchanges only (NSE / BSE)
+    const INDIAN_EXCHANGES = new Set(['NSE', 'BSE', 'NSI', 'BOM']);
+    const indianResults = quotes
+      .filter((item: any) =>
+        item.symbol &&
+        (INDIAN_EXCHANGES.has(item.exchDisp) || INDIAN_EXCHANGES.has(item.exchange))
+      )
+      .slice(0, 5)
       .map((item: any) => ({
         symbol: item.symbol,
         shortname: item.shortname || item.longname || item.symbol,
         exchDisp: item.exchDisp || item.exchange || ''
       }));
 
-    return res.status(200).json(cleanResults);
+    return res.status(200).json(indianResults);
   } catch (error: any) {
     if (error.name === 'AbortError') {
       console.warn("Search API Error: Timeout");

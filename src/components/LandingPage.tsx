@@ -139,9 +139,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
           {/* Input Panel */}
           <div className="relative max-w-4xl mx-auto bg-zinc-900/50 p-6 md:p-8 rounded-3xl border border-zinc-800 backdrop-blur-xl">
             <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 text-left">
-              <div className="flex-1 relative" ref={dropdownRef}>
+              <div className="flex-1" ref={dropdownRef}>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Company Name / Ticker Input</label>
-                <div className="relative">
+                <div className="relative w-full">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     {isSearching ? <Loader2 className="w-5 h-5 text-blue-500 animate-spin" /> : <Search className="w-5 h-5 text-zinc-500" />}
                   </div>
@@ -153,40 +153,39 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
                       setShowDropdown(true);
                     }}
                     onFocus={() => setShowDropdown(suggestions.length > 0)}
-                    placeholder="e.g. Tata Steel, AAPL or ^NSEI"
+                    placeholder="e.g. Tata Steel, Reliance, ICICI Bank"
                     className="w-full bg-black/50 border border-zinc-700 rounded-xl pl-11 pr-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
                   />
-                </div>
 
-                {/* Autocomplete Dropdown */}
-                <AnimatePresence>
-                  {showDropdown && suggestions.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute z-50 w-full mt-2 bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl"
-                    >
-                      <ul className="max-h-60 overflow-y-auto filter-none py-2">
+                  {/* Autocomplete Dropdown — rendered inside the relative wrapper so top-full works correctly */}
+                  <AnimatePresence>
+                    {showDropdown && suggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 right-0 top-full mt-2 z-[9999] bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto"
+                      >
                         {suggestions.map((item, idx) => (
-                          <li 
+                          <div
                             key={item.symbol + idx}
-                            onClick={() => handleSelectSuggestion(item.symbol)}
-                            className="px-4 py-3 hover:bg-zinc-800 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-4 border-b border-white/5 last:border-0 transition-colors"
+                            onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(item.symbol); }}
+                            className="px-4 py-3 hover:bg-neutral-800 cursor-pointer flex items-center justify-between gap-4 border-b border-white/5 last:border-0 transition-colors"
                           >
-                            <div className="flex flex-col overflow-hidden">
-                              <span className="text-white font-medium truncate">{item.shortname}</span>
+                            <div className="flex flex-col overflow-hidden min-w-0">
+                              <span className="text-white font-medium truncate text-sm">{item.shortname}</span>
                               <span className="text-zinc-500 text-xs">{item.exchDisp}</span>
                             </div>
-                            <span className="text-blue-400 font-mono text-sm font-bold bg-blue-500/10 px-2 py-1 rounded w-fit shrink-0">
+                            <span className="text-blue-400 font-mono text-xs font-bold bg-blue-500/10 px-2 py-1 rounded shrink-0">
                               {item.symbol}
                             </span>
-                          </li>
+                          </div>
                         ))}
-                      </ul>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
               
               <div className="w-full md:w-32">

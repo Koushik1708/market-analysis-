@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchStockData, fetchQuoteData, processStockData, calculateMonthlyReturns, calculateSeasonalAverages } from '../services/stockService';
+import { loadFromCache, saveToCache } from '../services/stockCacheService';
 import { AnalysisDataPoint, QuoteData, DashboardProps } from '../types';
 import PriceChart from './Charts/PriceChart';
 import VolatilityChart from './Charts/VolatilityChart';
@@ -32,14 +33,16 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
       const activeSymbol = symbolName || DEFAULT_SYMBOL;
       const activeYears = years || 5;
 
-      // Bust the cache by appending _v2 so old corrupted prediction payloads are ignored
-      const cacheKey = `stock_data_v2_${activeSymbol}_${activeYears}`;
-      const cached = sessionStorage.getItem(cacheKey);
+      // Try to load the full payload from IndexedDB cache first
+      let payload: any = null;
+      try {
+        payload = await loadFromCache(activeSymbol, activeYears);
+      } catch {
+        // If cache read fails, continue to fetch fresh data
+        payload = null;
+      }
 
-      let payload = null;
-      if (cached) {
-        payload = JSON.parse(cached);
-      } else {
+      if (!payload) {
         const res = await fetch("/api/analyze-stock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -58,7 +61,9 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
         if (!payload || !payload.historicalData) {
           throw new Error("No data found for this ticker. Ensure symbol is valid.");
         }
-        sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+
+        // Persist large payload to IndexedDB (non-blocking, failures are safe)
+        saveToCache(activeSymbol, activeYears, payload).catch(() => {});
       }
 
       let historicalArray = payload.historicalData;
