@@ -48,22 +48,6 @@ The entire analysis pipeline — from data fetching to prediction — runs secur
 - 📉 **Walk-Forward Backtesting** — Computes MAE, RMSE, and Directional Accuracy over a held-out 20% test slice of historical data
 - 📱 **Fully Responsive UI** — Mobile-first glassmorphism design using Tailwind CSS, with `framer-motion` micro-animations
 - 🛡️ **Graceful Error Handling** — All API error responses return structured JSON messages with helpful suggestions; no silent crashes
-
----
-
-## 📸 Screenshots
-
-> *(Add your screenshots here after first run)*
-
-**Landing Page with Live Search**
-![Landing Page](screenshots/landing.png)
-
-**Stock Analysis Dashboard**
-![Dashboard](screenshots/dashboard.png)
-
-**AI Prediction View**
-![Prediction](screenshots/prediction.png)
-
 ---
 
 ## 🏗️ Architecture
