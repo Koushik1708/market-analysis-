@@ -156,8 +156,11 @@ export const generateEnsemblePredictions = (
 
 // --- Auto-regression helpers for ML ---
 const extractLatestFeaturesForML = (data: AnalysisDataPoint[]): number[] => {
-  const closes = data.map(d => d.close);
-  const vols = data.map(d => d.volume || 0);
+  // Optimization: we only need the last ~210 items to calculate the current latest stats accurately
+  // This drastically drops CPU loops during backtesting walks!
+  const slice = data.slice(-210);
+  const closes = slice.map(d => d.close);
+  const vols = slice.map(d => d.volume || 0);
   const smas50 = calculateSMA(closes, 50);
   const smas200 = calculateSMA(closes, 200);
   const rsis = calculateRSI(closes, 14);
@@ -165,7 +168,7 @@ const extractLatestFeaturesForML = (data: AnalysisDataPoint[]): number[] => {
   const volatilities = calculateVolatility(closes, 30);
   const momentums = calculateMomentum(closes, 14);
   
-  const last = data.length - 1;
+  const last = closes.length - 1;
   return [
     smas50[last] || closes[last],
     smas200[last] || closes[last],
@@ -346,10 +349,11 @@ export const callGeminiPrediction = async (
   const trainData = data.slice(0, trainSliceSize);
   const { X: trainX, y: trainY } = prepareMLDataset(trainData);
 
-  const rfModel = new RandomForestRegressor(10, 5);
+  // Optimized tree structures for fast CPU bound Node Vercel execution
+  const rfModel = new RandomForestRegressor(5, 4); // 5 trees, depth 4
   rfModel.fit(trainX, trainY);
 
-  const gbmModel = new GradientBoostingRegressor(15, 0.1, 3);
+  const gbmModel = new GradientBoostingRegressor(10, 0.1, 3); // 10 trees, depth 3
   gbmModel.fit(trainX, trainY);
 
   // Generate real predictions spanning into the future using the Trained ML
@@ -423,7 +427,8 @@ Generate:
       required: ["sentiment", "reasoning", "keyFactors", "newsSentiment"]
     };
 
-    const response = await ai.models.generateContent({
+    // Wrap the Gemini call with a 4500ms timeout Promise.race to prevent Vercel 10s timeout
+    const geminiPromise = ai.models.generateContent({
       model,
       contents: prompt,
       config: {
@@ -432,6 +437,12 @@ Generate:
         responseSchema
       }
     });
+
+    const timeoutPromise = new Promise<{ text: string }>((_, reject) => 
+      setTimeout(() => reject(new Error("Gemini AI request timed out after 4.5 seconds to prevent serverless crash.")), 4500)
+    );
+
+    const response = await Promise.race([geminiPromise, timeoutPromise]);
 
     if (!response.text) {
       throw new Error("No response received from GenAI.");
