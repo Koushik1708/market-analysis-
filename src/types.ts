@@ -64,6 +64,29 @@ export type MarketRegime =
   | 'Bearish Correction' 
   | 'Recovery Phase';
 
+export interface MarketContext {
+  indexName: string;
+  trend: 'Bullish' | 'Bearish' | 'Neutral';
+  dailyReturn: number;
+  volatility: number;
+}
+
+export interface SectorContext {
+  sectorName: string;
+  momentum: number;
+  volatility: number;
+  correlation: number;
+  trend: 'Bullish' | 'Bearish' | 'Neutral';
+}
+
+export interface InstitutionalFlow {
+  score: number; // 0-100
+  signal: 'Bullish' | 'Bearish' | 'Neutral';
+  obvTrend: 'Up' | 'Down' | 'Flat';
+  adLineTrend: 'Up' | 'Down' | 'Flat';
+  volatilityExpansion: boolean;
+}
+
 export interface BacktestPoint {
   date: string;
   predictedPrice: number;
@@ -97,5 +120,8 @@ export interface AIAnalysisResult {
   };
   confidenceScore: number;
   marketRegime: MarketRegime;
+  marketContext?: MarketContext;
+  sectorContext?: SectorContext;
+  institutionalFlow?: InstitutionalFlow;
   backtestMetrics?: BacktestMetrics;
 }

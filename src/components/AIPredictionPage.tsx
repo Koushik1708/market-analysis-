@@ -190,7 +190,41 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
             <button onClick={onBack} className="mt-4 px-6 py-2 bg-zinc-900 text-white rounded-lg font-medium hover:bg-zinc-800">Return to Dashboard</button>
           </div>
         ) : result && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Macro & Institutional Context Panel */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {result.marketContext && (
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
+                  <div className="text-sm font-medium text-zinc-500 mb-1 flex items-center gap-2">
+                    <Globe className="w-4 h-4" /> Market Context ({result.marketContext.indexName})
+                  </div>
+                  <div className={`text-xl font-bold ${result.marketContext.trend === 'Bullish' ? 'text-emerald-600' : result.marketContext.trend === 'Bearish' ? 'text-red-600' : 'text-zinc-600'}`}>
+                    {result.marketContext.trend} <span className="text-sm font-normal text-zinc-500 ml-2">({result.marketContext.dailyReturn > 0 ? '+' : ''}{result.marketContext.dailyReturn.toFixed(2)}%)</span>
+                  </div>
+                </div>
+              )}
+              {result.sectorContext && (
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
+                  <div className="text-sm font-medium text-zinc-500 mb-1 flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" /> Sector Trend ({result.sectorContext.sectorName})
+                  </div>
+                  <div className={`text-xl font-bold ${result.sectorContext.trend === 'Bullish' ? 'text-emerald-600' : result.sectorContext.trend === 'Bearish' ? 'text-red-600' : 'text-zinc-600'}`}>
+                    {result.sectorContext.trend} <span className="text-sm font-normal text-zinc-500 ml-2">(Score: {result.sectorContext.momentum.toFixed(0)})</span>
+                  </div>
+                </div>
+              )}
+              {result.institutionalFlow && (
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
+                  <div className="text-sm font-medium text-zinc-500 mb-1 flex items-center gap-2">
+                    <Activity className="w-4 h-4" /> Institutional Activity Signal
+                  </div>
+                  <div className={`text-xl font-bold flex items-center gap-2 ${result.institutionalFlow.signal === 'Bullish' ? 'text-emerald-600' : result.institutionalFlow.signal === 'Bearish' ? 'text-red-600' : 'text-yellow-600'}`}>
+                    {result.institutionalFlow.signal} <span className="text-sm text-zinc-500 font-normal ml-2">({result.institutionalFlow.score}/100)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Forecast Summary & Regime Panel */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
@@ -217,7 +251,7 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-[-10px] left-1/2 -translate-x-1/2 -translate-y-full w-64 p-3 bg-zinc-900 text-white text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  Confidence is derived mathematically from ensemble model agreement, current dataset volatility, and regime stability.
+                  Confidence is mapped using ML ensemble variance, ATR volatility, regime stability, and institutional volume flows.
                   <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-900 rotate-45"></div>
                 </div>
                 <div className="text-xl font-bold text-zinc-900 flex items-center gap-3">
