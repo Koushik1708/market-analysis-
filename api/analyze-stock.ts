@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { processStockData } from '../src/services/stockService.js';
 import { callGeminiPrediction } from '../src/services/predictionService.js';
 
-// Basic mapper
-const dict: Record<string, string> = {
+// Basic mapper for standard tickers and indices
+const parseDict: Record<string, string> = {
   "TATA STEEL": "TATASTEEL.NS",
   "TATASTEEL": "TATASTEEL.NS",
   "BHARAT AIRTEL": "BHARTIARTL.NS",
@@ -12,12 +12,18 @@ const dict: Record<string, string> = {
   "INFOSYS": "INFY.NS",
   "HDFCBANK": "HDFCBANK.NS",
   "TCS": "TCS.NS",
+  // Indices
   "NIFTY": "^NSEI",
   "NIFTY 50": "^NSEI",
   "NIFTY50": "^NSEI",
   "BANKNIFTY": "^NSEBANK",
   "BANK NIFTY": "^NSEBANK",
-  "SENSEX": "^BSESN"
+  "SENSEX": "^BSESN",
+  // Commodities
+  "GOLD": "GC=F",
+  "SILVER": "SI=F",
+  "CRUDE OIL": "CL=F",
+  "CRUDEOIL": "CL=F"
 };
 
 const sectorMap: Record<string, string> = {
@@ -35,19 +41,27 @@ const CACHE_TTL = 1000 * 60 * 60 * 2; // 2 hours
 
 async function fetchYahooSeries(symbol: string, years: number) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${years}y&interval=1d`;
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Accept': 'application/json'
-    }
-  });
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4500);
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error(`Ticker symbol '${symbol}' not found on Yahoo Finance.`);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Ticker symbol '${symbol}' not found on Yahoo Finance.`);
+      }
+      throw new Error(`Yahoo API returned ${response.status} for ${symbol}.`);
     }
-    throw new Error(`Yahoo API returned ${response.status} for ${symbol}.`);
-  }
   
   const rawData = await response.json();
   
@@ -81,6 +95,13 @@ async function fetchYahooSeries(symbol: string, years: number) {
   }
   
   throw new Error(`Data format unparseable or empty for ${symbol}.`);
+} catch (fetchErr: any) {
+  clearTimeout(timeoutId);
+  if (fetchErr.name === 'AbortError') {
+    throw new Error(`Yahoo Finance API timed out for ${symbol}.`);
+  }
+  throw fetchErr;
+}
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -93,11 +114,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Company name is required." });
   }
 
-  let ticker = company.toUpperCase().trim();
-  const normalized = ticker.replace(/[\s\W]+/g, '');
-  if (dict[ticker]) ticker = dict[ticker];
-  else if (dict[normalized]) ticker = dict[normalized];
-  else if (!ticker.includes('.') && !ticker.startsWith('^')) ticker = ticker + '.NS';
+  let ticker = company.trim().toUpperCase().replace(/\s+/g, '');
+
+  if (parseDict[ticker]) ticker = parseDict[ticker];
+  else if (!ticker.includes('.') && !ticker.startsWith('^') && !ticker.includes('=')) {
+    // If it's a standard string without standard market syntax (like .NS, .BO, =F, or ^)
+    // Assume NSE stock format
+    ticker = ticker + '.NS';
+  }
 
   const cacheKey = `${ticker}_${years}`;
   const cached = globalModelCache.get(cacheKey);
@@ -118,7 +142,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`Fetching core stock ${ticker}, market ${marketSymbol}, and sector ${sectorSymbol}`);
     
     const [stockData, marketData, sectorData] = await Promise.all([
-      fetchYahooSeries(ticker, years),
+      fetchYahooSeries(ticker, years).catch((err) => {
+        // If the core asset fetch fails, we MUST throw so we can format the error block below.
+        throw err;
+      }),
       fetchYahooSeries(marketSymbol, years).catch(() => null),
       fetchYahooSeries(sectorSymbol, years).catch(() => null)
     ]);
@@ -187,6 +214,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error(error);
+    const errString = String(error.message || error).toLowerCase();
+    
+    // Check if the error implies a bad ticker mapping
+    if (errString.includes('not found') || errString.includes('404') || errString.includes('no data found')) {
+      return res.status(404).json({ 
+        error: `Ticker symbol '${company}' not found. Try symbols like RELIANCE.NS, AAPL, or ^NSEI.` 
+      });
+    }
+
     return res.status(500).json({ error: error.message || "Failed to fetch stock data." });
   }
 }

@@ -22,10 +22,9 @@ const monthNames = [
 
 const SeasonalChart: React.FC<Props> = ({ data, yearRange }) => {
   return (
-    <div className="h-[300px] w-full bg-white p-4 rounded-xl shadow-sm border border-black/5">
-      <h3 className="text-lg font-semibold mb-4 text-zinc-900">
-        Average Monthly Closing Price
-        {yearRange && <span className="text-sm font-medium text-zinc-500 ml-2">({yearRange})</span>}
+    <div className="w-full h-[300px] md:h-[400px] bg-white p-4 rounded-xl shadow-sm border border-black/5">
+      <h3 className="text-base md:text-lg font-semibold mb-4 text-zinc-900">
+        Average Seasonal Performance {yearRange && `(${yearRange})`}
       </h3>
       <ResponsiveContainer width="100%" height="80%">
         <BarChart data={data}>

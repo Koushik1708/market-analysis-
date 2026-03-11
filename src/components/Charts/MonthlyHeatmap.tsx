@@ -25,8 +25,8 @@ const MonthlyHeatmap: React.FC<Props> = ({ data }) => {
     .range(['#ef4444', '#f8fafc', '#22c55e']);
 
   return (
-    <div className="w-full bg-white p-6 rounded-xl shadow-sm border border-black/5 overflow-x-auto">
-      <h3 className="text-lg font-semibold mb-6 text-zinc-900">Monthly Returns (%) Heatmap</h3>
+    <div className="w-full h-auto min-h-[400px] bg-white p-4 rounded-xl shadow-sm border border-black/5 overflow-x-auto">
+      <h3 className="text-base md:text-lg font-semibold mb-4 text-zinc-900">Monthly Returns Heatmap (%)</h3>
       
       <div className="min-w-[800px]">
         {/* Header */}

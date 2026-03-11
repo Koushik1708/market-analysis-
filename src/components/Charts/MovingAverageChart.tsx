@@ -18,8 +18,8 @@ interface Props {
 
 const MovingAverageChart: React.FC<Props> = ({ data }) => {
   return (
-    <div className="h-[400px] w-full bg-white p-4 rounded-xl shadow-sm border border-black/5">
-      <h3 className="text-lg font-semibold mb-4 text-zinc-900">Moving Averages (50 & 200 Day)</h3>
+    <div className="w-full h-[300px] md:h-[400px] bg-white p-4 rounded-xl shadow-sm border border-black/5">
+      <h3 className="text-base md:text-lg font-semibold mb-4 text-zinc-900">Moving Averages (50 & 200 Day)</h3>
       <ResponsiveContainer width="100%" height="90%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />

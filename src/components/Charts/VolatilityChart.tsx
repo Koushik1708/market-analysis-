@@ -20,8 +20,8 @@ const VolatilityChart: React.FC<Props> = ({ data }) => {
   const filteredData = data.filter(d => d.volatility !== null);
 
   return (
-    <div className="h-[300px] w-full bg-white p-4 rounded-xl shadow-sm border border-black/5">
-      <h3 className="text-lg font-semibold mb-4 text-zinc-900">30-Day Rolling Volatility (Annualized)</h3>
+    <div className="w-full h-[300px] md:h-[400px] bg-white p-4 rounded-xl shadow-sm border border-black/5">
+      <h3 className="text-base md:text-lg font-semibold mb-4 text-zinc-900">20-Day Rolling Volatility (Annualized)</h3>
       <ResponsiveContainer width="100%" height="80%">
         <LineChart data={filteredData}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />

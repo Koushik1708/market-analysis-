@@ -44,7 +44,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-zinc-50 overflow-x-hidden">
       {appState.view === 'landing' ? (
         <LandingPage onDataLoaded={handleDataLoaded} />
       ) : appState.view === 'prediction' ? (

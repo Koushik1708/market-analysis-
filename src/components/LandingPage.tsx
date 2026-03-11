@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BarChart2, Shield, ArrowRight, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { BarChart2, Shield, ArrowRight, Loader2, AlertCircle, FileText, Search } from 'lucide-react';
 import { StockDataPoint, AppDocument } from '../types';
+
+interface SearchResult {
+  symbol: string;
+  shortname: string;
+  exchDisp: string;
+}
 
 interface LandingPageProps {
   onDataLoaded: (data: StockDataPoint[], fileName: string, documents: AppDocument[], years?: number) => void;
@@ -13,6 +19,65 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
   const [ticker, setTicker] = useState('Tata Steel');
   const [years, setYears] = useState('5');
   
+  // Autocomplete State
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounced Search Logic
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      const q = ticker.trim();
+      if (q.length < 2) {
+        setSuggestions([]);
+        setShowDropdown(false);
+        return;
+      }
+      
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/search-tickers?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data);
+          setShowDropdown(data.length > 0);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      // Don't search if the user just clicked a suggestion which perfectly matches the current ticker
+      const perfectMatch = suggestions.find(s => s.symbol === ticker.trim());
+      if (!perfectMatch) {
+        fetchSuggestions();
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [ticker]);
+
+  const handleSelectSuggestion = (sym: string) => {
+    setTicker(sym);
+    setShowDropdown(false);
+    setSuggestions([]);
+  };
+
   const handleAnalyze = async () => {
     if (!ticker.trim()) {
       setError("Please enter a valid stock ticker symbol.");
@@ -63,37 +128,76 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
             Professional Grade Analytics
           </div>
           
-          <h1 className="text-6xl md:text-8xl font-bold tracking-tighter mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-500">
+          <h1 className="text-5xl md:text-8xl font-bold tracking-tighter mb-4 md:mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-500 leading-tight">
             QUANTUM <br /> ANALYTICS
           </h1>
           
-          <p className="text-xl text-zinc-400 mb-12 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg md:text-xl text-zinc-400 mb-8 md:mb-12 max-w-2xl mx-auto leading-relaxed px-4 md:px-0">
             Enter any global stock ticker symbol to generate instant, institutional-grade insights and AI-driven 14-day forecasts.
           </p>
 
           {/* Input Panel */}
-          <div className="relative max-w-xl mx-auto bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 backdrop-blur-xl">
-            <div className="flex flex-col gap-6 text-left">
-              <div>
+          <div className="relative max-w-4xl mx-auto bg-zinc-900/50 p-6 md:p-8 rounded-3xl border border-zinc-800 backdrop-blur-xl">
+            <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 text-left">
+              <div className="flex-1 relative" ref={dropdownRef}>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Company Name / Ticker Input</label>
-                <input 
-                  type="text" 
-                  value={ticker}
-                  onChange={(e) => setTicker(e.target.value)}
-                  placeholder="Enter company name or ticker (example: Tata Steel or TATASTEEL.NS)"
-                  className="w-full bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    {isSearching ? <Loader2 className="w-5 h-5 text-blue-500 animate-spin" /> : <Search className="w-5 h-5 text-zinc-500" />}
+                  </div>
+                  <input 
+                    type="text" 
+                    value={ticker}
+                    onChange={(e) => {
+                      setTicker(e.target.value);
+                      setShowDropdown(true);
+                    }}
+                    onFocus={() => setShowDropdown(suggestions.length > 0)}
+                    placeholder="e.g. Tata Steel, AAPL or ^NSEI"
+                    className="w-full bg-black/50 border border-zinc-700 rounded-xl pl-11 pr-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                  />
+                </div>
+
+                {/* Autocomplete Dropdown */}
+                <AnimatePresence>
+                  {showDropdown && suggestions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute z-50 w-full mt-2 bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl"
+                    >
+                      <ul className="max-h-60 overflow-y-auto filter-none py-2">
+                        {suggestions.map((item, idx) => (
+                          <li 
+                            key={item.symbol + idx}
+                            onClick={() => handleSelectSuggestion(item.symbol)}
+                            className="px-4 py-3 hover:bg-zinc-800 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-4 border-b border-white/5 last:border-0 transition-colors"
+                          >
+                            <div className="flex flex-col overflow-hidden">
+                              <span className="text-white font-medium truncate">{item.shortname}</span>
+                              <span className="text-zinc-500 text-xs">{item.exchDisp}</span>
+                            </div>
+                            <span className="text-blue-400 font-mono text-sm font-bold bg-blue-500/10 px-2 py-1 rounded w-fit shrink-0">
+                              {item.symbol}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Years of Historical Data Input</label>
+              <div className="w-full md:w-32">
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Years</label>
                 <input 
                   type="number" 
                   value={years}
                   min="1"
                   max="20"
                   onChange={(e) => setYears(e.target.value)}
-                  placeholder="Enter number of years (example: 5)"
+                  placeholder="e.g. 5"
                   className="w-full bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
                 />
               </div>
@@ -103,25 +207,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onDataLoaded }) => {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleAnalyze}
                 disabled={isLoading}
-                className="w-full mt-2 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                className="w-full md:w-auto h-[50px] px-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 whitespace-nowrap"
               >
-                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><BarChart2 className="w-5 h-5"/> Analyze Stock <ArrowRight className="w-4 h-4 ml-1" /></>}
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><BarChart2 className="w-5 h-5"/> Analyze <ArrowRight className="w-4 h-4 ml-1" /></>}
               </motion.button>
-              
-              <AnimatePresence>
-                {error && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm mt-2"
-                  >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
+              
+            <AnimatePresence>
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm mt-4"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
             {/* Glow Effect on Hover */}
             <div className="absolute inset-0 rounded-3xl bg-blue-500/5 opacity-0 hover:opacity-100 transition-opacity pointer-events-none" />
           </div>

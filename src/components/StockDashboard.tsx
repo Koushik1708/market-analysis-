@@ -132,8 +132,8 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
     <div className="min-h-screen bg-zinc-50 pb-12">
       {/* Header */}
       <header className="bg-white border-b border-zinc-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[5rem] py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
             {onReset && (
               <button
                 onClick={onReset}
@@ -159,9 +159,9 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
           </div>
 
           {quote && (
-            <div className="text-right">
-              <div className="text-2xl font-bold text-zinc-900">₹{quote.regularMarketPrice.toLocaleString('en-IN')}</div>
-              <div className={`flex items-center justify-end gap-1 text-sm font-semibold ${quote.regularMarketChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            <div className="text-left md:text-right w-full md:w-auto">
+              <div className="text-xl md:text-2xl font-bold text-zinc-900">₹{quote.regularMarketPrice.toLocaleString('en-IN')}</div>
+              <div className={`flex items-center justify-start md:justify-end gap-1 text-sm font-semibold ${quote.regularMarketChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {quote.regularMarketChange >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                 {quote.regularMarketChange >= 0 ? '+' : ''}{quote.regularMarketChange.toFixed(2)} ({quote.regularMarketChangePercent.toFixed(2)}%)
               </div>
@@ -169,15 +169,15 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
           )}
 
           {customData && (
-            <div className="text-right">
-              <div className="text-2xl font-bold text-zinc-900">₹{latest.close.toLocaleString('en-IN')}</div>
+            <div className="text-left md:text-right w-full md:w-auto">
+              <div className="text-xl md:text-2xl font-bold text-zinc-900">₹{latest.close.toLocaleString('en-IN')}</div>
               <p className="text-xs text-zinc-500 font-medium uppercase">Last Recorded Price</p>
             </div>
           )}
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 md:space-y-8 overflow-x-hidden">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
@@ -215,7 +215,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
         )}
 
         {/* Insights Section */}
-        <section className="bg-white p-8 rounded-2xl shadow-sm border border-black/5">
+        <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-black/5">
           <div className="flex items-center gap-3 mb-6">
             <Calendar className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-bold text-zinc-900">Mathematical Insights</h2>

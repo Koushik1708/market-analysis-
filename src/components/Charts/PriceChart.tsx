@@ -21,8 +21,8 @@ interface Props {
 
 const PriceChart: React.FC<Props> = ({ data, symbolName }) => {
   return (
-    <div className="h-[400px] w-full bg-white p-4 rounded-xl shadow-sm border border-black/5">
-      <h3 className="text-lg font-semibold mb-4 text-zinc-900">{symbolName || 'Stock'} - Close Price</h3>
+    <div className="w-full h-[300px] md:h-[400px] bg-white p-4 rounded-xl shadow-sm border border-black/5">
+      <h3 className="text-base md:text-lg font-semibold mb-4 text-zinc-900">{symbolName || 'Stock'} - Close Price</h3>
       <ResponsiveContainer width="100%" height="90%">
         <AreaChart data={data}>
           <defs>
