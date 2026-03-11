@@ -77,39 +77,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error("Invalid data format received from API.");
     }
 
+    console.log(`Successfully mapped ${mappedData.length} raw data points.`);
     mappedData = mappedData.filter((d: any) => !isNaN(d.close) && d.close !== null && !isNaN(new Date(d.date).getTime()));
     if (mappedData.length === 0) {
       throw new Error("Data parse error.");
     }
+    console.log(`Filtered to ${mappedData.length} valid historical data points.`);
 
     const processedFormat = mappedData.map(d => ({ ...d, date: new Date(d.date) }));
     processedFormat.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     // 1. Calculate technicals locally in Node
+    console.log(`Starting technical indicator computation...`);
     const analysisData = processStockData(processedFormat);
+    console.log(`Technical indicators computed. Output data points: ${analysisData.length}`);
 
     // 2. Fetch News context via yahooFinance2 wrapper locally in Node
     let newsHeadlines: string[] = [];
     try {
+      console.log(`Fetching latest news for ${ticker}...`);
       const newsResult = await yahooFinance.search(ticker, { newsCount: 5 }) as any;
       if (newsResult.news && Array.isArray(newsResult.news)) {
         newsHeadlines = newsResult.news.map((n: any) => n.title);
+        console.log(`Fetched ${newsHeadlines.length} news headlines.`);
       }
     } catch (e) {
       console.warn("Failed to fetch news serverside", e);
     }
 
     // 3. Compute Ensembles & Factor Scoring, call Gemini for abstract reasoning
+    console.log(`Calling prediction engine (Ensemble Math + Gemini API)...`);
     let predictionResult = null;
     let predictionError = null;
     try {
       predictionResult = await callGeminiPrediction(analysisData, ticker, newsHeadlines);
+      console.log(`Prediction engine completed successfully. Output points: ${predictionResult?.predictions?.length}`);
     } catch (e: any) {
-      console.error("Gemini inference failed", e);
+      console.error("Gemini inference block failed unexpectedly:", e);
       predictionError = e.message || String(e);
     }
 
     // 4. Return unified JSON block strictly to Vercel specs
+    console.log(`Sending complete JSON payload back to client. Contains predictionResult: ${!!predictionResult}`);
     return res.status(200).json({
       historicalData: analysisData,
       predictionResult: predictionResult,

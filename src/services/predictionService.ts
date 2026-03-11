@@ -191,11 +191,6 @@ export const callGeminiPrediction = async (
   symbolName: string,
   newsHeadlines: string[] = []
 ): Promise<AIAnalysisResult> => {
-  const apiKey = process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Gemini API key missing. Please set VITE_GEMINI_API_KEY in the environment.");
-  }
-
   if (data.length < 100) {
     throw new Error("Backtesting requires at least 100 data points.");
   }
@@ -238,18 +233,22 @@ export const callGeminiPrediction = async (
   // Ensure bounds 0-100
   confidence = Math.min(100, Math.max(0, Math.floor(confidence)));
 
-  // Removed sessionStorage usage to ensure logic can run server-side in Node.js
   let aiResultParams: any = null;
 
-  // Call Gemini only for reasoning and sentiment extraction
-  const ai = new GoogleGenAI({ apiKey });
-  const model = "gemini-3-flash-preview";
+  try {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Gemini API key missing. Please set GEMINI_API_KEY in the environment.");
+    }
 
-  const systemInstruction = `You are an AI financial reasoning agent.
+    const ai = new GoogleGenAI({ apiKey });
+    const model = "gemini-3-flash-preview";
+
+    const systemInstruction = `You are an AI financial reasoning agent.
 Produce a brief explanation (UNDER 150 WORDS) based on the inputs.
 You MUST respond strictly with a valid JSON document matching the requested schema.`;
 
-  const prompt = `Stock: ${symbolName || 'Unknown Stock'}
+    const prompt = `Stock: ${symbolName || 'Unknown Stock'}
 Market Regime: ${regime}
 Factor Score: ${factorScore}/100
 Predictions: ${predictions[0].modelPrediction.toFixed(2)} to ${predictions[predictions.length - 1].modelPrediction.toFixed(2)}
@@ -263,49 +262,74 @@ Generate:
 3. 3-5 key driving factors (brief bullet points)
 4. Overall News Sentiment Score (0=negative, 1=positive) and Label based on headlines.`;
 
-  const responseSchema: Schema = {
-    type: Type.OBJECT,
-    properties: {
-      sentiment: {
-        type: Type.STRING,
-        enum: ["Bullish", "Bearish", "Neutral"],
-      },
-      reasoning: {
-        type: Type.STRING,
-        description: "Professional market analysis report (2-3 paragraphs), explicitly referencing provided technicals, regime, and volatility."
-      },
-      keyFactors: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING },
-      },
-      newsSentiment: {
-        type: Type.OBJECT,
-        properties: {
-          score: { type: Type.NUMBER, description: "Sentiment score from -1.0 to 1.0" },
-          label: { type: Type.STRING, enum: ["Positive", "Neutral", "Negative"] },
-          headlines: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Return the provided 5 actual headlines." }
+    const responseSchema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        sentiment: {
+          type: Type.STRING,
+          enum: ["Bullish", "Bearish", "Neutral"],
         },
-        required: ["score", "label", "headlines"]
+        reasoning: {
+          type: Type.STRING,
+          description: "Professional market analysis report (2-3 paragraphs), explicitly referencing provided technicals, regime, and volatility."
+        },
+        keyFactors: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+        },
+        newsSentiment: {
+          type: Type.OBJECT,
+          properties: {
+            score: { type: Type.NUMBER, description: "Sentiment score from -1.0 to 1.0" },
+            label: { type: Type.STRING, enum: ["Positive", "Neutral", "Negative"] },
+            headlines: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Return the provided 5 actual headlines." }
+          },
+          required: ["score", "label", "headlines"]
+        }
+      },
+      required: ["sentiment", "reasoning", "keyFactors", "newsSentiment"]
+    };
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema
       }
-    },
-    required: ["sentiment", "reasoning", "keyFactors", "newsSentiment"]
-  };
+    });
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      systemInstruction,
-      responseMimeType: "application/json",
-      responseSchema
+    if (!response.text) {
+      throw new Error("No response received from GenAI.");
     }
-  });
 
-  if (!response.text) {
-    throw new Error("No response received from GenAI.");
+    aiResultParams = JSON.parse(response.text);
+  } catch (geminiError: any) {
+    console.warn("⚠️ Gemini AI analysis failed. Falling back to mathematical ensemble model.", geminiError.message);
+
+    // Construct a safe, valid fallback block using purely the mathematical predictions.
+    const averagePred = predictions.reduce((acc, p) => acc + p.modelPrediction, 0) / predictions.length;
+    let fallbackSentiment = "Neutral";
+    if (averagePred > latestPrice * 1.02) fallbackSentiment = "Bullish";
+    if (averagePred < latestPrice * 0.98) fallbackSentiment = "Bearish";
+
+    aiResultParams = {
+      sentiment: fallbackSentiment,
+      reasoning: "The mathematical forecasting models (Holt-Winters, Momentum, and Mean Reversion) have successfully generated prediction bounds. However, abstract AI reasoning (Gemini) is currently unavailable to contextualize this data. Generating insights purely from quantitative technical factors.",
+      keyFactors: [
+        `Market is currently in a ${regime}`,
+        `Mathematical Factor Score: ${factorScore}/100`,
+        `Recent Volatility computes to ${(latestVol * 100).toFixed(2)}%`,
+        `AI Language Model unavailable, returning statistical ensemble.`
+      ],
+      newsSentiment: {
+        score: 0.5,
+        label: "Neutral",
+        headlines: newsHeadlines.slice(0, 5)
+      }
+    };
   }
-
-  aiResultParams = JSON.parse(response.text);
 
   // Calculate min and max from the predictions
   const predMax = Math.max(...predictions.map(p => p.upperBound || p.modelPrediction || 0));
