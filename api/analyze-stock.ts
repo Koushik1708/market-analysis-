@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import yahooFinance from 'yahoo-finance2';
 import { processStockData } from '../src/services/stockService.js';
 import { callGeminiPrediction } from '../src/services/predictionService.js';
 
@@ -37,7 +36,13 @@ async function fetchYahooSeries(symbol: string, years: number) {
     }
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`Ticker symbol '${symbol}' not found on Yahoo Finance.`);
+    }
+    throw new Error(`Yahoo API returned ${response.status} for ${symbol}.`);
+  }
+  
   const rawData = await response.json();
   
   if (rawData.chart && rawData.chart.result && rawData.chart.result.length > 0) {
@@ -45,19 +50,31 @@ async function fetchYahooSeries(symbol: string, years: number) {
     const timestamps = result.timestamp || [];
     const quote = result.indicators.quote[0] || {};
     
+    if (timestamps.length === 0) {
+      throw new Error(`No historical data found for ${symbol}.`);
+    }
+
     let mapped = timestamps.map((ts: number, i: number) => ({
-      date: new Date(ts * 1000),
-      open: quote.open?.[i] || 0,
-      high: quote.high?.[i] || 0,
-      low: quote.low?.[i] || 0,
-      close: quote.close?.[i] || 0,
-      volume: quote.volume?.[i] || 0,
+      date: new Date(ts * 1000).toISOString(),
+      open: quote.open?.[i] ?? null,
+      high: quote.high?.[i] ?? null,
+      low: quote.low?.[i] ?? null,
+      close: quote.close?.[i] ?? null,
+      volume: quote.volume?.[i] ?? 0,
       symbol: symbol
     }));
     
-    return mapped.filter((d: any) => !isNaN(d.close) && d.close !== null && !isNaN(d.date.getTime()));
+    // Filter out rows with bad or null data explicitly
+    const validData = mapped.filter((d: any) => typeof d.close === 'number' && !isNaN(d.close) && d.close > 0);
+    
+    if (validData.length === 0) {
+      throw new Error(`Failed to parse valid OHLCV data for ${symbol}.`);
+    }
+    
+    return validData;
   }
-  return null;
+  
+  throw new Error(`Data format unparseable or empty for ${symbol}.`);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -117,9 +134,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 2. Fetch News context
     let newsHeadlines: string[] = [];
     try {
-      const newsResult = await yahooFinance.search(ticker, { newsCount: 5 }) as any;
-      if (newsResult.news && Array.isArray(newsResult.news)) {
-        newsHeadlines = newsResult.news.map((n: any) => n.title);
+      const newsResponse = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=5`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      if (newsResponse.ok) {
+        const newsData = await newsResponse.json();
+        if (newsData.news && Array.isArray(newsData.news)) {
+          newsHeadlines = newsData.news.map((n: any) => n.title);
+        }
       }
     } catch (e) {
       console.warn("Failed to fetch news serverside", e);
@@ -157,8 +179,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json(responsePayload);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    return res.status(500).json({ error: "Failed to fetch stock data" });
+    return res.status(500).json({ error: error.message || "Failed to fetch stock data." });
   }
 }
