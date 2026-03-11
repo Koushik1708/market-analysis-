@@ -31,10 +31,11 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
     try {
       const activeSymbol = symbolName || DEFAULT_SYMBOL;
       const activeYears = years || 5;
-      
-      const cacheKey = `stock_data_${activeSymbol}_${activeYears}`;
+
+      // Bust the cache by appending _v2 so old corrupted prediction payloads are ignored
+      const cacheKey = `stock_data_v2_${activeSymbol}_${activeYears}`;
       const cached = sessionStorage.getItem(cacheKey);
-      
+
       let payload = null;
       if (cached) {
         payload = JSON.parse(cached);
@@ -47,30 +48,30 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
             years: activeYears
           })
         });
-        
+
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.error || "Failed to fetch stock data");
         }
         payload = await res.json();
-        
+
         if (!payload || !payload.historicalData) {
           throw new Error("No data found for this ticker. Ensure symbol is valid.");
         }
         sessionStorage.setItem(cacheKey, JSON.stringify(payload));
       }
-      
+
       let historicalArray = payload.historicalData;
       let predResult = payload.predictionResult;
-      
+
       if (!Array.isArray(historicalArray)) {
         throw new Error("Invalid data format received from API.");
       }
 
       // Convert iso strings back to Date objects strictly for the processor if they got stringified
       const processedFormat = historicalArray.map(d => ({
-         ...d, 
-         date: typeof d.date === 'string' ? new Date(d.date) : d.date
+        ...d,
+        date: typeof d.date === 'string' ? new Date(d.date) : d.date
       }));
       processedFormat.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -82,8 +83,8 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
       setQuote(quoteData);
     } catch (err: any) {
       console.error(err);
-      setError(err.message === "Failed to fetch stock data" 
-        ? "Unable to fetch stock data. Please check the ticker symbol or try again." 
+      setError(err.message === "Failed to fetch stock data"
+        ? "Unable to fetch stock data. Please check the ticker symbol or try again."
         : (err.message || "Unable to fetch stock data. Please check the ticker symbol or try again."));
     } finally {
       setLoading(false);
@@ -109,7 +110,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
         <AlertCircle className="w-12 h-12 text-red-500" />
         <h2 className="text-xl font-bold text-zinc-900">Oops! Something went wrong</h2>
         <p className="text-zinc-500 max-w-md">{error}</p>
-        <button 
+        <button
           onClick={loadData}
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
         >
@@ -134,7 +135,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
             {onReset && (
-              <button 
+              <button
                 onClick={onReset}
                 className="p-2 hover:bg-zinc-100 rounded-full transition-colors"
                 title="Back to Upload"
@@ -156,7 +157,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
               </div>
             </div>
           </div>
-          
+
           {quote && (
             <div className="text-right">
               <div className="text-2xl font-bold text-zinc-900">₹{quote.regularMarketPrice.toLocaleString('en-IN')}</div>
@@ -168,10 +169,10 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
           )}
 
           {customData && (
-             <div className="text-right">
-                <div className="text-2xl font-bold text-zinc-900">₹{latest.close.toLocaleString('en-IN')}</div>
-                <p className="text-xs text-zinc-500 font-medium uppercase">Last Recorded Price</p>
-             </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-zinc-900">₹{latest.close.toLocaleString('en-IN')}</div>
+              <p className="text-xs text-zinc-500 font-medium uppercase">Last Recorded Price</p>
+            </div>
           )}
         </div>
       </header>
@@ -179,24 +180,24 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard 
-            title={customData ? "Total Records" : "Market Cap"} 
-            value={customData ? data.length.toString() : `₹${(quote?.marketCap ? quote.marketCap / 1e11 : 0).toFixed(2)}T`} 
+          <StatCard
+            title={customData ? "Total Records" : "Market Cap"}
+            value={customData ? data.length.toString() : `₹${(quote?.marketCap ? quote.marketCap / 1e11 : 0).toFixed(2)}T`}
             icon={<BarChart3 className="w-5 h-5 text-blue-500" />}
           />
-          <StatCard 
-            title="Period High" 
-            value={`₹${Math.max(...data.map(d => d.high)).toLocaleString('en-IN')}`} 
+          <StatCard
+            title="Period High"
+            value={`₹${Math.max(...data.map(d => d.high)).toLocaleString('en-IN')}`}
             icon={<TrendingUp className="w-5 h-5 text-emerald-500" />}
           />
-          <StatCard 
-            title="Period Low" 
-            value={`₹${Math.min(...data.map(d => d.low)).toLocaleString('en-IN')}`} 
+          <StatCard
+            title="Period Low"
+            value={`₹${Math.min(...data.map(d => d.low)).toLocaleString('en-IN')}`}
             icon={<TrendingDown className="w-5 h-5 text-red-500" />}
           />
-          <StatCard 
-            title="Current Volatility" 
-            value={`${((latest?.volatility || 0) * 100).toFixed(2)}%`} 
+          <StatCard
+            title="Current Volatility"
+            value={`${((latest?.volatility || 0) * 100).toFixed(2)}%`}
             icon={<Activity className="w-5 h-5 text-orange-500" />}
           />
         </div>
@@ -222,14 +223,14 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <p className="text-zinc-600 leading-relaxed">
-                The provided dataset has been analyzed using standard quantitative finance algorithms. 
-                We've calculated rolling volatility, moving averages, and seasonal performance mapping 
+                The provided dataset has been analyzed using standard quantitative finance algorithms.
+                We've calculated rolling volatility, moving averages, and seasonal performance mapping
                 to give you a professional view of the asset's behavior.
               </p>
               <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <h4 className="font-semibold text-blue-900 mb-1">Data Integrity</h4>
                 <p className="text-sm text-blue-800">
-                  Analysis is performed locally on your browser. Your data is never uploaded to our servers, 
+                  Analysis is performed locally on your browser. Your data is never uploaded to our servers,
                   ensuring maximum privacy and security.
                 </p>
               </div>
@@ -258,7 +259,7 @@ const StockDashboard: React.FC<DashboardProps> = ({ customData, symbolName, year
                   Take your analysis to the next level. Let our Gemini AI analyze historical momentum and current macroeconomic factors (geopolitics, inflation, etc.) to forecast the next 14 days of market movement.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => onPredict && onPredict(data, predictionData)}
                 className="shrink-0 px-8 py-4 bg-white text-purple-900 rounded-xl font-bold hover:bg-purple-50 transition-all shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.5)] hover:scale-105 flex items-center gap-2"
               >
