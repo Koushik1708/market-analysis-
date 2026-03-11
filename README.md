@@ -2,10 +2,11 @@
 
 > An intelligent, full-stack financial analytics platform that combines real-time market data, ensemble machine learning, and Google Gemini AI to deliver professional-grade stock analysis and 14-day price forecasting — all in a beautiful, responsive web UI.
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-blue?style=for-the-badge)](https://market-analysis-six-omega.vercel.app)
+[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-market--analysis--six.vercel.app-blue?style=for-the-badge)](https://market-analysis-six.vercel.app)
 [![Vercel Deploy](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org)
+[![AI](https://img.shields.io/badge/AI-Gemini%202.0%20Flash-34A853?style=for-the-badge&logo=google)](https://aistudio.google.com)
 
 ---
 
@@ -26,7 +27,7 @@
 
 ## 🌐 Overview
 
-This application is a production-grade financial analytics platform designed for data-driven investors and researchers. It allows users to search for any global stock, index, or commodity, and instantly generates:
+This application is a production-grade financial analytics platform for **exploring market behavior and AI-driven forecasting**. It allows users to search for any Indian stock, index, or global commodity, and instantly generates:
 
 - **Interactive technical charts** with historical OHLCV data, moving averages, volatility, and seasonality
 - **AI-assisted 14-day price forecasts** powered by a pipeline of statistical models, ML ensembles, and Gemini AI reasoning
@@ -161,8 +162,8 @@ The backend automatically resolves input strings to their correct Yahoo Finance 
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/yourusername/quantum-analytics.git
-   cd quantum-analytics
+   git clone https://github.com/Koushik1708/market-analysis-.git
+   cd market-analysis-
    ```
 
 2. **Install Dependencies**
@@ -174,8 +175,9 @@ The backend automatically resolves input strings to their correct Yahoo Finance 
 
    Create a `.env.local` file at the root:
    ```env
-   VITE_GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
+   > ⚠️ **Security note:** `GEMINI_API_KEY` is consumed exclusively by the Vercel Serverless Functions in `/api`. It is **never** exposed to the browser bundle.
 
 4. **Start the Development Server**
    ```bash
@@ -199,10 +201,11 @@ This project is fully pre-configured for **Vercel** deployment. All files inside
 
 1. Push your code to a **GitHub repository**
 2. Import the repo at [vercel.com/new](https://vercel.com/new)
-3. Add the environment variable:
+3. Add the environment variable in the Vercel dashboard:
    ```
-   GEMINI_API_KEY = your_gemini_api_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
+   > This variable is read only by serverless functions — it is never sent to the client.
 4. Click **Deploy**!
 
 ### Deploy via Vercel CLI
@@ -236,6 +239,7 @@ vercel --prod
 │   │
 │   ├── services/
 │   │   ├── predictionService.ts # ML models, Gemini calls, backtesting
+│   │   ├── stockCacheService.ts # IndexedDB cache (large datasets, auto-eviction)
 │   │   └── stockService.ts    # Data fetching, OHLCV processing, technical indicators
 │   │
 │   ├── utils/
