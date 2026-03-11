@@ -11,7 +11,13 @@ const dict: Record<string, string> = {
   "RELIANCE": "RELIANCE.NS",
   "INFOSYS": "INFY.NS",
   "HDFCBANK": "HDFCBANK.NS",
-  "TCS": "TCS.NS"
+  "TCS": "TCS.NS",
+  "NIFTY": "^NSEI",
+  "NIFTY 50": "^NSEI",
+  "NIFTY50": "^NSEI",
+  "BANKNIFTY": "^NSEBANK",
+  "BANK NIFTY": "^NSEBANK",
+  "SENSEX": "^BSESN"
 };
 
 const sectorMap: Record<string, string> = {
@@ -91,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const normalized = ticker.replace(/[\s\W]+/g, '');
   if (dict[ticker]) ticker = dict[ticker];
   else if (dict[normalized]) ticker = dict[normalized];
-  else if (!ticker.includes('.')) ticker = ticker + '.NS'; 
+  else if (!ticker.includes('.') && !ticker.startsWith('^')) ticker = ticker + '.NS';
 
   const cacheKey = `${ticker}_${years}`;
   const cached = globalModelCache.get(cacheKey);
