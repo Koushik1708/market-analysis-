@@ -35,8 +35,10 @@ const sectorMap: Record<string, string> = {
   "RELIANCE.NS": "^CNXENERGY"
 };
 
-// Global Memory Cache for Vercel Serverless (Persists during warm boots)
-const globalModelCache = new Map<string, { timestamp: number; payload: any }>();
+// Global in-memory cache — persists across warm Vercel invocations on the same instance
+declare const globalThis: any;
+const globalCache: Map<string, { timestamp: number; payload: any }> =
+  globalThis.__stockAnalysisCache ?? (globalThis.__stockAnalysisCache = new Map());
 const CACHE_TTL = 1000 * 60 * 60 * 2; // 2 hours
 
 async function fetchYahooSeries(symbol: string, years: number) {
@@ -123,13 +125,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ticker = ticker + '.NS';
   }
 
-  const cacheKey = `${ticker}_${years}`;
-  const cached = globalModelCache.get(cacheKey);
-  
-  // 1. In-Memory ML Cache Retrieval
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`⚡ CACHE HIT: Reusing trained ML ensemble & data for ${cacheKey}`);
-    return res.status(200).json(cached.payload);
+  const cacheKey = `analysis_${ticker}_${years}`;
+  const cached = globalCache.get(cacheKey);
+
+  // ── In-Memory Cache Hit ──────────────────────────────────────────────────
+  if (cached) {
+    if (Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log(`⚡ CACHE HIT: ${cacheKey}`);
+      res.setHeader('Cache-Control', 's-maxage=7200, stale-while-revalidate=3600');
+      res.setHeader('X-Cache', 'HIT');
+      return res.status(200).json(cached.payload);
+    }
+    // TTL expired — evict and fall through to a fresh fetch
+    globalCache.delete(cacheKey);
+    console.log(`🕐 CACHE EXPIRED: ${cacheKey} — fetching fresh data.`);
   }
 
   console.log(`User input: ${company} | Resolved ticker: ${ticker} | Cache Miss`);
@@ -206,10 +215,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       predictionError: predictionError
     };
 
-    // Store the successfully trained ensemble payload in memory cache
-    globalModelCache.set(cacheKey, { timestamp: Date.now(), payload: responsePayload });
-    console.log(`🧠 CACHE SAVED: Stored ML weights and predictions for ${cacheKey}`);
+    // ── Cache the result ONLY when historicalData is valid ──────────────────
+    if (
+      responsePayload.historicalData &&
+      Array.isArray(responsePayload.historicalData) &&
+      responsePayload.historicalData.length > 0
+    ) {
+      globalCache.set(cacheKey, { timestamp: Date.now(), payload: responsePayload });
+      console.log(`🧠 CACHE SAVED: ${cacheKey} (${responsePayload.historicalData.length} rows)`);
+    } else {
+      console.warn(`⚠️  CACHE SKIP: historicalData missing or empty — result not cached.`);
+    }
 
+    res.setHeader('Cache-Control', 's-maxage=7200, stale-while-revalidate=3600');
+    res.setHeader('X-Cache', 'MISS');
     return res.status(200).json(responsePayload);
 
   } catch (error: any) {
