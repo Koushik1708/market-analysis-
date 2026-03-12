@@ -239,7 +239,6 @@ vercel --prod
 │   │
 │   ├── services/
 │   │   ├── predictionService.ts # ML models, Gemini calls, backtesting
-│   │   ├── stockCacheService.ts # IndexedDB cache (large datasets, auto-eviction)
 │   │   └── stockService.ts    # Data fetching, OHLCV processing, technical indicators
 │   │
 │   ├── utils/
