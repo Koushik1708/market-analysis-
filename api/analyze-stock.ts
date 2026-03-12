@@ -27,12 +27,44 @@ const parseDict: Record<string, string> = {
 };
 
 const sectorMap: Record<string, string> = {
-  "TATASTEEL.NS": "^CNXMETAL",
-  "BHARTIARTL.NS": "^NSEI", // Telecom uses broad market fallback if specific index unseen via yahoo
-  "INFY.NS": "^CNXIT",
-  "TCS.NS": "^CNXIT",
-  "HDFCBANK.NS": "^NSEBANK",
-  "RELIANCE.NS": "^CNXENERGY"
+  "TATASTEEL.NS": "METAL",
+  "JSWSTEEL.NS": "METAL",
+  "HINDALCO.NS": "METAL",
+  
+  "INFY.NS": "IT",
+  "TCS.NS": "IT",
+  "WIPRO.NS": "IT",
+  "TECHM.NS": "IT",
+  "HCLTECH.NS": "IT",
+  
+  "RELIANCE.NS": "ENERGY",
+  "ONGC.NS": "ENERGY",
+  "POWERGRID.NS": "ENERGY",
+  "NTPC.NS": "ENERGY",
+  
+  "HDFCBANK.NS": "BANKING",
+  "ICICIBANK.NS": "BANKING",
+  "SBIN.NS": "BANKING",
+  "KOTAKBANK.NS": "BANKING",
+  "AXISBANK.NS": "BANKING",
+
+  "SUNPHARMA.NS": "PHARMA",
+  "CIPLA.NS": "PHARMA",
+  "DRREDDY.NS": "PHARMA",
+
+  "MARUTI.NS": "AUTO",
+  "TATAMOTORS.NS": "AUTO",
+  "M&M.NS": "AUTO"
+};
+
+const sectorIndices: Record<string, string> = {
+  "IT": "^CNXIT",
+  "BANKING": "^NSEBANK",
+  "METAL": "^CNXMETAL",
+  "ENERGY": "^CNXENERGY",
+  "PHARMA": "^CNXPHARMA",
+  "AUTO": "^CNXAUTO",
+  "MARKET": "^NSEI"
 };
 
 // Global in-memory cache — persists across warm Vercel invocations on the same instance
@@ -146,9 +178,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // 2. Fetch Stock, Market, and Sector Data in parallel
     const marketSymbol = "^NSEI"; // NIFTY 50
-    const sectorSymbol = sectorMap[ticker] || "^NSEI";
+    const sectorName = sectorMap[ticker] || "MARKET";
+    const sectorSymbol = sectorIndices[sectorName] || "^NSEI";
     
-    console.log(`Fetching core stock ${ticker}, market ${marketSymbol}, and sector ${sectorSymbol}`);
+    console.log(`Fetching core stock ${ticker}, market ${marketSymbol}, and sector ${sectorName} (${sectorSymbol})`);
     
     const [stockData, marketData, sectorData] = await Promise.all([
       fetchYahooSeries(ticker, years).catch((err) => {
@@ -201,7 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         marketData, 
         sectorData, 
         marketSymbol, 
-        sectorSymbol
+        sectorName // Pass semantic name (e.g. "IT" instead of "^CNXIT")
       );
     } catch (e: any) {
       console.error("Prediction engine block failed unexpectedly:", e);
