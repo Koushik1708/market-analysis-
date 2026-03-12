@@ -135,6 +135,28 @@ export const calculateAverageVolume = (volumes: number[]): number => {
   return slice.reduce((a, b) => a + b, 0) / slice.length;
 };
 
+export const calculateCorrelation = (arr1: number[], arr2: number[]): number => {
+  if (arr1.length === 0 || arr2.length === 0 || arr1.length !== arr2.length) return 0;
+  const n = arr1.length;
+  const mean1 = arr1.reduce((a, b) => a + b, 0) / n;
+  const mean2 = arr2.reduce((a, b) => a + b, 0) / n;
+  
+  let num = 0;
+  let den1 = 0;
+  let den2 = 0;
+  
+  for (let i = 0; i < n; i++) {
+    const diff1 = arr1[i] - mean1;
+    const diff2 = arr2[i] - mean2;
+    num += diff1 * diff2;
+    den1 += diff1 * diff1;
+    den2 += diff2 * diff2;
+  }
+  
+  if (den1 === 0 || den2 === 0) return 0;
+  return num / Math.sqrt(den1 * den2);
+};
+
 export const calculateTrendStrength = (closes: number[]): number => {
   const slice = closes.slice(-14);
   if (slice.length < 2) return 0;

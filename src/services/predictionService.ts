@@ -14,25 +14,11 @@ import {
   calculateInstitutionalFlow,
   calculateOBV,
   calculateAccumulationDistribution,
-  calculateATR
+  calculateATR,
+  calculateCorrelation
 } from "../utils/technicalIndicators.js";
 import { RandomForestRegressor, GradientBoostingRegressor } from "../utils/mlModels.js";
 
-// --- Mathematical Helpers ---
-const pearsonCorrelation = (x: number[], y: number[]): number => {
-  if (x.length !== y.length || x.length === 0) return 0;
-  const n = x.length;
-  const sumX = x.reduce((a, b) => a + b, 0);
-  const sumY = y.reduce((a, b) => a + b, 0);
-  const sumX2 = x.reduce((a, b) => a + b * b, 0);
-  const sumY2 = y.reduce((a, b) => a + b * b, 0);
-  const sumXY = x.reduce((a, b, i) => a + b * y[i], 0);
-
-  const numerator = n * sumXY - sumX * sumY;
-  const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-  if (denominator === 0) return 0;
-  return numerator / denominator;
-};
 // Simple hash function for dataset to create a deterministic seed and cache key
 const hashDataset = (data: AnalysisDataPoint[]): number => {
   let hash = 0;
@@ -75,6 +61,7 @@ export const generateEnsemblePredictions = (
   latestVol: number,
   factorScore: number,
   sectorCorrelation: number,
+  sectorTrend: string,
   trainedRF?: RandomForestRegressor,
   trainedGBM?: GradientBoostingRegressor
 ): PredictionPoint[] => {
@@ -103,19 +90,36 @@ export const generateEnsemblePredictions = (
     wMom = 0.1; wMR = 0.6; wHW = 0.3;
   }
 
-  // Sector Correlation Adjustment: If stock tightly follows its sector, allow momentum to carry more weight
-  if (sectorCorrelation > 0.6) {
-    wHW += 0.1;
-    wMR -= 0.1;
-  } else if (sectorCorrelation < 0.3) {
-    wMR += 0.1; // More idiosyncratic, leans on mean reversion
-    wMom -= 0.1;
-  }
-
   if (latestVol > 0.3) {
     wMom *= 0.5;
     wMR += (wMom);
   }
+
+  // Adjust weighting based on Sector Correlation
+  if (sectorCorrelation > 0.6) {
+    if (sectorTrend === 'Bullish') {
+       wMom += 0.15; // Strong follow
+       wHW += 0.05;
+       wMR -= 0.20;
+    } else {
+       wMom += 0.10; // Following trend downward or upward
+       wMR -= 0.10;
+    }
+  } else if (sectorCorrelation < 0.3) {
+    wMR += 0.20; // Detached from sector, likely to revert to its own mean independent of sector
+    wMom -= 0.20;
+  }
+
+  // Ensure weights are positive
+  wMom = Math.max(0.05, wMom);
+  wMR = Math.max(0.05, wMR);
+  wHW = Math.max(0.05, wHW);
+
+  // Normalize sum to 1.0
+  const sumWeights = wHW + wMom + wMR;
+  wHW /= sumWeights;
+  wMom /= sumWeights;
+  wMR /= sumWeights;
 
   const predictions: PredictionPoint[] = [];
   const lastDate = typeof data[data.length - 1].date === 'string'
@@ -306,7 +310,8 @@ export const callGeminiPrediction = async (
   marketData: any[] | null = null,
   sectorData: any[] | null = null,
   marketSymbol: string = "^NSEI",
-  sectorSymbol: string = ""
+  sectorSymbol: string = "",
+  sectorName: string = "BROAD_MARKET"
 ): Promise<AIAnalysisResult> => {
   if (data.length < 100) {
     throw new Error("Backtesting requires at least 100 data points.");
@@ -350,33 +355,38 @@ export const callGeminiPrediction = async (
     };
   }
 
-  // Sector Context & Correlation Modeling
+  // Sector Context
   let sectorCtx = undefined;
-  let correlation = 0.8; // Default fallback
+  let sectorCorrelation = 0.5;
+  let sectorTrendStr = 'Neutral';
+
   if (sectorData && sectorData.length > 50) {
     const sCloses = sectorData.map(d => d.close || 0);
-    const sMA50Now = calculateSMA(sCloses, 50)[sCloses.length - 1];
+    const sMA50Now = calculateSMA(sCloses, 50)[sCloses.length - 1] || 0;
+    const sMA200Now = calculateSMA(sCloses, 200)[sCloses.length - 1] || 0;
     
-    // Calculate Pearson correlation of daily returns over the last 50 days
-    const lookback = Math.min(50, closes.length, sCloses.length);
-    const stockSlice = closes.slice(-lookback);
-    const sectorSlice = sCloses.slice(-lookback);
+    sectorTrendStr = sMA50Now > sMA200Now ? 'Bullish' : 'Bearish';
+
+    // Compute real Pearson correlation of daily returns
+    const alignLen = Math.min(closes.length, sCloses.length);
+    const stockSlice = closes.slice(-alignLen);
+    const sectorSlice = sCloses.slice(-alignLen);
     
-    const stockReturns = [];
-    const sectorReturns = [];
-    for(let i = 1; i < lookback; i++) {
-        stockReturns.push((stockSlice[i] - stockSlice[i-1]) / stockSlice[i-1]);
-        sectorReturns.push((sectorSlice[i] - sectorSlice[i-1]) / sectorSlice[i-1]);
+    const stockRet = [];
+    const sectorRet = [];
+    for(let i=1; i<alignLen; i++) {
+        stockRet.push((stockSlice[i] - stockSlice[i-1]) / stockSlice[i-1]);
+        sectorRet.push((sectorSlice[i] - sectorSlice[i-1]) / sectorSlice[i-1]);
     }
-    
-    correlation = pearsonCorrelation(stockReturns, sectorReturns);
+
+    sectorCorrelation = calculateCorrelation(stockRet, sectorRet);
 
     sectorCtx = {
-      sectorName: sectorSymbol, // Semantically passed from analyze-stock
+      sectorName: sectorName || sectorSymbol,
       momentum: calculateMomentum(sCloses, 14)[sCloses.length - 1] || 100,
       volatility: calculateVolatility(sCloses, 30)[sCloses.length - 1] || 0.15,
-      correlation: Number(correlation.toFixed(2)),
-      trend: sCloses[sCloses.length - 1] > (sMA50Now || 0) ? 'Bullish' : 'Bearish'
+      correlation: Number(sectorCorrelation.toFixed(2)),
+      trend: sectorTrendStr
     };
   }
 
@@ -398,7 +408,9 @@ export const callGeminiPrediction = async (
   gbmModel.fit(trainX, trainY);
 
   // Generate real predictions spanning into the future using the Trained ML
-  const predictions = generateEnsemblePredictions(data, 14, prng, regime, latestVol, factorScore, correlation, rfModel, gbmModel);
+  const predictions = generateEnsemblePredictions(
+    data, 14, prng, regime, latestVol, factorScore, sectorCorrelation, sectorTrendStr, rfModel, gbmModel
+  );
 
   let newsSentimentData = { score: 0, label: 'Neutral', headlines: newsHeadlines.slice(0, 5) };
 
@@ -537,7 +549,7 @@ Generate:
     const localVol = vols[testStartIndex + i] || latestVol;
 
     // Use ML Models to validate the historic steps too
-    const pred1Day = generateEnsemblePredictions(walkData, 1, prng, regime, localVol, factorScore, correlation, rfModel, gbmModel);
+    const pred1Day = generateEnsemblePredictions(walkData, 1, prng, regime, localVol, factorScore, sectorCorrelation, sectorTrendStr, rfModel, gbmModel);
     if (pred1Day.length > 0) {
       const predicted = pred1Day[0].modelPrediction || 0;
       const actualTarget = testData[i + 1].close;

@@ -192,7 +192,7 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
         ) : result && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Macro & Institutional Context Panel */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {result.marketContext && (
                 <div className="bg-neutral-900 p-6 rounded-3xl shadow-sm border border-neutral-800">
                   <div className="text-sm font-medium text-neutral-500 mb-1 flex items-center gap-2">
@@ -210,6 +210,25 @@ const AIPredictionPage: React.FC<Props> = ({ data, predictionResult, symbolName,
                   </div>
                   <div className={`text-xl font-bold ${result.sectorContext.trend === 'Bullish' ? 'text-emerald-500' : result.sectorContext.trend === 'Bearish' ? 'text-red-500' : 'text-neutral-400'}`}>
                     {result.sectorContext.trend} <span className="text-sm font-normal text-neutral-600 ml-2">(Score: {result.sectorContext.momentum.toFixed(0)})</span>
+                  </div>
+                </div>
+              )}
+              {result.sectorContext && (
+                <div className="bg-neutral-900 p-6 rounded-3xl shadow-sm border border-neutral-800 relative group">
+                  <div className="text-sm font-medium text-neutral-500 mb-1 flex items-center gap-2">
+                    <Activity className="w-4 h-4" /> Sector Correlation
+                    <Info className="w-3.5 h-3.5 text-neutral-600 cursor-help" />
+                  </div>
+                  {/* Tooltip */}
+                  <div className="absolute top-[-10px] left-1/2 -translate-x-1/2 -translate-y-full w-64 p-3 bg-neutral-800 text-neutral-200 text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    Measures how strongly the stock moves alongside its broader sector. High correlation increases sector trend weighting.
+                    <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-neutral-800 rotate-45"></div>
+                  </div>
+                  <div className="text-xl font-bold text-white flex items-center gap-3">
+                    <span>{result.sectorContext.correlation.toFixed(2)}</span>
+                    <div className="flex-1 bg-neutral-800 rounded-full h-2">
+                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.max(0, result.sectorContext.correlation * 100)}%` }} />
+                    </div>
                   </div>
                 </div>
               )}
